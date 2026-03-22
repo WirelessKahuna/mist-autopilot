@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased;
+  }
+}
+
+@layer utilities {
+  .score-ring {
+    stroke-dasharray: 100;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.8s ease;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+}
