@@ -3,9 +3,6 @@
 cd /app/backend
 uvicorn main:app --host 127.0.0.1 --port 8000 &
 
-# Start Nginx in background first so healthcheck can respond
-nginx -g "daemon off;" &
-
 # Wait for backend to be ready
 echo "Waiting for backend..."
 for i in $(seq 1 60); do
@@ -16,5 +13,5 @@ for i in $(seq 1 60); do
     sleep 1
 done
 
-# Keep container alive
-wait
+# Start Nginx in foreground (keeps container alive)
+exec nginx -g "daemon off;"
