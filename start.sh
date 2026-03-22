@@ -13,5 +13,10 @@ for i in $(seq 1 60); do
     sleep 1
 done
 
-# Start Nginx in foreground (keeps container alive)
+# Test nginx config
+echo "Testing nginx config..."
+nginx -t
+
+# Start Nginx in foreground
+echo "Starting nginx..."
 exec nginx -g "daemon off;"
