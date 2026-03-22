@@ -13,9 +13,10 @@ for i in $(seq 1 60); do
     sleep 1
 done
 
-# Test nginx config
-echo "Testing nginx config..."
-nginx -t
+# Kill any existing nginx instance
+echo "Stopping any existing nginx..."
+nginx -s stop 2>/dev/null || true
+sleep 1
 
 # Start Nginx in foreground
 echo "Starting nginx..."
