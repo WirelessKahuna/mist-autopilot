@@ -25,3 +25,4 @@ export const listModules     = ()         => api.get('/modules/')
 export const getHealth       = ()         => api.get('/health')
 
 export default api
+export const getStats = () => api.get('/org/stats')

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import OrgHeader from '../components/OrgHeader'
 import ModuleTile from '../components/ModuleTile'
 import DrillDown from '../components/DrillDown'
-import { getOrgSummary } from '../api/client'
+import { getOrgSummary, getStats } from '../api/client'
 
 function ErrorBanner({ message, onRetry }) {
   return (
@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [drillDownModule, setDrillDownModule] = useState(null)
+  const [apiStats, setApiStats] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,6 +62,13 @@ export default function Dashboard() {
       const data = await getOrgSummary()
       setOrg(data)
       setLastUpdated(formatTime(new Date()))
+      // Fetch API call stats after scan completes
+      try {
+        const stats = await getStats()
+        setApiStats(stats)
+      } catch (_) {
+        // Stats are non-critical — fail silently
+      }
     } catch (e) {
       setError(e.message)
     } finally {
@@ -79,6 +87,7 @@ export default function Dashboard() {
           onRefresh={load}
           loading={loading}
           lastUpdated={lastUpdated}
+          apiStats={apiStats}
         />
 
         {error && <div className="mb-6"><ErrorBanner message={error} onRetry={load} /></div>}

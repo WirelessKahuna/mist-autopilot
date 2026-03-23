@@ -10,7 +10,7 @@ function scoreToSeverity(score) {
   return 'critical'
 }
 
-export default function OrgHeader({ org, onRefresh, loading, lastUpdated }) {
+export default function OrgHeader({ org, onRefresh, loading, lastUpdated, apiStats }) {
   const severity = scoreToSeverity(org?.overall_score)
   const cfg = getSeverityConfig(severity)
 
@@ -34,6 +34,17 @@ export default function OrgHeader({ org, onRefresh, loading, lastUpdated }) {
                 <>
                   <span className="text-slate-600">·</span>
                   <span>Updated {lastUpdated}</span>
+                </>
+              )}
+              {apiStats && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-slate-500">
+                    API Calls — Last:&nbsp;
+                    <span className="text-slate-300">{apiStats.last_refresh}</span>
+                    &nbsp;·&nbsp;Hour:&nbsp;
+                    <span className="text-slate-300">{apiStats.hourly}</span>
+                  </span>
                 </>
               )}
             </div>
