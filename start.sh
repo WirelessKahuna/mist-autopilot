@@ -1,6 +1,4 @@
 #!/bin/sh
-PORT=${PORT:-80}
-
 cd /app/backend
 uvicorn main:app --host 127.0.0.1 --port 8000 &
 
@@ -16,6 +14,5 @@ done
 nginx -s stop 2>/dev/null || true
 sleep 1
 
-echo "Starting nginx on port ${PORT}..."
-sed -i "s/listen 80;/listen ${PORT};/" /etc/nginx/nginx.conf
+echo "Starting nginx on port 8080..."
 exec nginx -g "daemon off;"
