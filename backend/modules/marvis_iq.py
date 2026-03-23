@@ -1,16 +1,11 @@
-from .base import BaseModule, ModuleResult, Finding, Severity
+from models import ModuleOutput
+from mist_client import MistClient
+from .base import BaseModule
 
 class MarvisIQModule(BaseModule):
-    name = "MarvisIQ"
-    description = "Marvis event analysis with dynamic PCAP capture and AI-powered diagnosis"
-    icon = "🔬"
-    coming_soon = True
+    module_id    = "marvis_iq"
+    display_name = "MarvisIQ"
+    icon         = "🔬"
 
-    async def analyze(self, org_id: str, sites: list) -> ModuleResult:
-        return ModuleResult(
-            module=self.name,
-            coming_soon=True,
-            findings=[],
-            score=None,
-            summary="This module is under construction."
-        )
+    async def analyze(self, org_id: str, sites: list[dict], client: MistClient) -> ModuleOutput:
+        return self._coming_soon_output()
