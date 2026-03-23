@@ -9,6 +9,7 @@ from .wan_sentinel import WANSentinelModule
 from .sub_monitor import SUBMonitorModule
 from .minis_monitor import MinisMonitorModule
 from .auth_guard import AuthGuardModule
+from .marvis_iq import MarvisIQModule
 
 # Registry — add new modules here and they appear in the dashboard automatically
 ALL_MODULES = [
@@ -23,4 +24,5 @@ ALL_MODULES = [
     SUBMonitorModule(),
     MinisMonitorModule(),
     AuthGuardModule(),
+    MarvisIQModule(),
 ]
