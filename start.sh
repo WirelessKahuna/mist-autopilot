@@ -1,9 +1,9 @@
 #!/bin/sh
-# Start Python backend in background
+PORT=${PORT:-80}
+
 cd /app/backend
 uvicorn main:app --host 127.0.0.1 --port 8000 &
 
-# Wait for backend to be ready
 echo "Waiting for backend..."
 for i in $(seq 1 60); do
     if wget -q -O- http://127.0.0.1:8000/health > /dev/null 2>&1; then
@@ -13,9 +13,9 @@ for i in $(seq 1 60); do
     sleep 1
 done
 
-# Kill any existing nginx
 nginx -s stop 2>/dev/null || true
 sleep 1
 
-echo "Starting nginx on port 80..."
+echo "Starting nginx on port ${PORT}..."
+sed -i "s/listen 80;/listen ${PORT};/" /etc/nginx/nginx.conf
 exec nginx -g "daemon off;"
