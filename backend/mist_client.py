@@ -276,3 +276,43 @@ class MistClient:
 
 # Singleton instance — imported by all modules
 mist = MistClient()
+
+
+# ---------------------------------------------------------------------------
+# API Call Counter
+# ---------------------------------------------------------------------------
+from datetime import datetime, timezone
+
+class _APICounter:
+    def __init__(self):
+        self.last_refresh: int = 0
+        self.hourly: int = 0
+        self._current_hour: int = datetime.now(timezone.utc).hour
+
+    def increment(self):
+        now_hour = datetime.now(timezone.utc).hour
+        if now_hour != self._current_hour:
+            self.hourly = 0
+            self._current_hour = now_hour
+        self.last_refresh += 1
+        self.hourly += 1
+
+    def reset_last_refresh(self):
+        self.last_refresh = 0
+
+    def reset_all(self):
+        self.last_refresh = 0
+        self.hourly = 0
+
+    def stats(self) -> dict:
+        now_hour = datetime.now(timezone.utc).hour
+        if now_hour != self._current_hour:
+            self.hourly = 0
+            self._current_hour = now_hour
+        return {
+            "last_refresh": self.last_refresh,
+            "hourly": self.hourly,
+        }
+
+
+api_counter = _APICounter()
