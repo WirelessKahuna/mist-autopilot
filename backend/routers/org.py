@@ -52,3 +52,9 @@ async def get_sites():
         return await mist.get_sites(org_id)
     except MistAPIError as e:
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
+
+@router.get("/stats")
+async def get_stats():
+    """Return API call counters for display in the dashboard header."""
+    from mist_client import api_counter
+    return api_counter.stats()
