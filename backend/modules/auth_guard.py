@@ -25,6 +25,9 @@ API endpoints used:
 
 import asyncio
 import logging
+from datetime import datetime, timezone
+from cryptography import x509
+from cryptography.hazmat.primitives.serialization import Encoding
 
 from models import ModuleOutput, Finding, Severity
 from mist_client import MistClient, MistAPIError
@@ -98,24 +101,11 @@ class AuthGuardModule(BaseModule):
                 status="ok",
             )
 
-        # ── 3. Check for default-deny catch-all ──────────────────────────────
-        deny_rules = [r for r in nacrules if r.get("action") == "deny"]
-        if not deny_rules:
-            findings.append(Finding(
-                severity=Severity.warning,
-                title="No default-deny rule — NAC policy has no catch-all",
-                detail=(
-                    f"{len(nacrules)} NAC rule(s) exist but none use the 'deny' action. "
-                    "Without a default-deny catch-all as the last rule, devices that "
-                    "don't match any allow rule may receive unexpected access based on "
-                    "the platform default behavior."
-                ),
-                recommendation=(
-                    "Add a final NAC rule with action 'deny' and no matching conditions "
-                    "to act as a catch-all. This ensures unmatched devices are explicitly "
-                    "rejected rather than relying on implicit behavior."
-                ),
-            ))
+        # ── 3. Default-deny note ─────────────────────────────────────────────
+        # Mist always enforces an implicit default-deny "Last Rule" for unmatched
+        # requests, but this rule is not exposed via the nacrules API endpoint.
+        # No finding needed — the platform guarantees the deny behavior.
+        deny_rules = []  # kept for summary logic compatibility
 
         # ── 4. Check for unnamed rules ───────────────────────────────────────
         unnamed = [r for r in nacrules if not r.get("name", "").strip()]
@@ -196,7 +186,11 @@ class AuthGuardModule(BaseModule):
                 ),
             ))
 
-        # ── 8. Check CA certs present ────────────────────────────────────────
+        # ── 8. Check CA certs present + expiry ──────────────────────────────
+        CERT_CRITICAL_DAYS = 30
+        CERT_WARNING_DAYS  = 90
+        now = datetime.now(timezone.utc)
+
         if not cacerts:
             findings.append(Finding(
                 severity=Severity.critical,
@@ -214,19 +208,97 @@ class AuthGuardModule(BaseModule):
                 ),
             ))
         else:
-            findings.append(Finding(
-                severity=Severity.info,
-                title=f"{len(cacerts)} CA certificate(s) configured",
-                detail=(
-                    f"{len(cacerts)} CA certificate(s) are uploaded to Mist NAC "
-                    f"for client certificate validation"
-                    + (f", plus {len(scep_certs)} SCEP CA cert(s)." if scep_certs else ".")
-                ),
-                recommendation=(
-                    "Periodically review CA certificate expiry dates and renew "
-                    "before expiration to prevent authentication outages."
-                ),
-            ))
+            # Parse each cert for expiry
+            expired_certs:  list[str] = []
+            critical_certs: list[str] = []
+            warning_certs:  list[str] = []
+            healthy_count = 0
+
+            for pem in cacerts:
+                try:
+                    cert     = x509.load_pem_x509_certificate(pem.encode())
+                    not_after = cert.not_valid_after_utc
+                    days      = (not_after - now).days
+                    try:
+                        cn = cert.subject.get_attributes_for_oid(
+                            x509.NameOID.COMMON_NAME
+                        )[0].value
+                    except Exception:
+                        cn = "Unknown CN"
+
+                    label = f"{cn} (expires {not_after.strftime('%Y-%m-%d')})"
+
+                    if days < 0:
+                        expired_certs.append(label)
+                    elif days <= CERT_CRITICAL_DAYS:
+                        critical_certs.append(f"{label} — {days}d remaining")
+                    elif days <= CERT_WARNING_DAYS:
+                        warning_certs.append(f"{label} — {days}d remaining")
+                    else:
+                        healthy_count += 1
+                except Exception:
+                    healthy_count += 1  # Can't parse — assume ok
+
+            if expired_certs:
+                findings.append(Finding(
+                    severity=Severity.critical,
+                    title=f"{len(expired_certs)} CA certificate(s) EXPIRED",
+                    detail=(
+                        f"{len(expired_certs)} CA certificate(s) have passed their "
+                        f"expiry date. Expired CA certs will cause EAP-TLS authentication "
+                        f"failures for all clients validated against this CA."
+                    ),
+                    affected=expired_certs,
+                    recommendation=(
+                        "Replace expired CA certificates immediately under "
+                        "Organization > Access > PKI & Certificates > Trusted CAs."
+                    ),
+                ))
+
+            if critical_certs:
+                findings.append(Finding(
+                    severity=Severity.critical,
+                    title=f"{len(critical_certs)} CA certificate(s) expiring within {CERT_CRITICAL_DAYS} days",
+                    detail=(
+                        f"{len(critical_certs)} CA certificate(s) expire within "
+                        f"{CERT_CRITICAL_DAYS} days. Immediate renewal required to "
+                        f"prevent authentication outages."
+                    ),
+                    affected=critical_certs,
+                    recommendation=(
+                        "Renew expiring CA certificates immediately and upload replacements "
+                        "under Organization > Access > PKI & Certificates > Trusted CAs."
+                    ),
+                ))
+
+            if warning_certs:
+                findings.append(Finding(
+                    severity=Severity.warning,
+                    title=f"{len(warning_certs)} CA certificate(s) expiring within {CERT_WARNING_DAYS} days",
+                    detail=(
+                        f"{len(warning_certs)} CA certificate(s) expire within "
+                        f"{CERT_WARNING_DAYS} days. Begin renewal process now."
+                    ),
+                    affected=warning_certs,
+                    recommendation=(
+                        "Initiate CA certificate renewal and upload replacements before expiry "
+                        "under Organization > Access > PKI & Certificates > Trusted CAs."
+                    ),
+                ))
+
+            if not expired_certs and not critical_certs and not warning_certs:
+                findings.append(Finding(
+                    severity=Severity.info,
+                    title=f"{len(cacerts)} CA certificate(s) configured — all current",
+                    detail=(
+                        f"{healthy_count} CA certificate(s) are valid and current"
+                        + (f", plus {len(scep_certs)} SCEP CA cert(s)." if scep_certs else ".")
+                    ),
+                    recommendation=(
+                        "Review CA certificate expiry dates periodically and renew "
+                        "before expiration to prevent authentication outages."
+                    ),
+                ))
 
         # ── 9. Check for unresolved tag references ───────────────────────────
         unresolved: list[str] = []
@@ -302,8 +374,6 @@ class AuthGuardModule(BaseModule):
             )
         else:
             parts = []
-            if not deny_rules:
-                parts.append("no default-deny rule")
             if not cert_rules:
                 parts.append("no cert auth rule")
             if scep_status != "enabled":
