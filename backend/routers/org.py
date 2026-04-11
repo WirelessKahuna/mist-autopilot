@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from config import get_settings
-from mist_client import mist, MistAPIError
+from mist_client import mist, MistAPIError, api_counter
 from models import OrgSummary
 from modules import ALL_MODULES
 
@@ -19,6 +19,7 @@ async def get_org_summary():
     Returns the complete OrgSummary used to render the dashboard.
     """
     org_id = settings.mist_org_id
+    api_counter.reset_last_refresh()
 
     try:
         org_info = await mist.get_org_info(org_id)

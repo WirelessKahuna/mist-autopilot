@@ -57,6 +57,7 @@ class MistClient:
                     return _cache[cache_key]
 
         await self._throttle()
+        api_counter.increment()
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
