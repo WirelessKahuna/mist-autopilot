@@ -111,6 +111,9 @@ class MarvisIQModule(BaseModule):
                 actions = result.get("data", result.get("results", []))
             elif isinstance(result, list):
                 actions = result
+            elif isinstance(result, str):
+                # Unexpected string response — log and return error
+                return self._error_output(f"Unexpected response from Marvis actions endpoint: {result[:200]}")
             else:
                 actions = []
         except MistAPIError as e:
