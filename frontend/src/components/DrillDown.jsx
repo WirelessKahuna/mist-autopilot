@@ -88,7 +88,7 @@ function ScoreLegend({ moduleId }) {
           </div>
         ))}
         {contextNote && (
-          <p className="text-xs text-slate-500 border-t border-slate-800 pt-2 mt-1 leading-relaxed">
+          <p className="text-xs text-slate-300 border-t border-slate-800 pt-2 mt-1 leading-relaxed">
             {contextNote}
           </p>
         )}
@@ -107,7 +107,7 @@ function FindingCard({ finding }) {
           {finding.severity}
         </span>
       </div>
-      <p className="text-xs text-slate-400 mb-2 leading-relaxed">{finding.detail}</p>
+      <p className="text-xs text-slate-300 mb-2 leading-relaxed">{finding.detail}</p>
       {finding.affected?.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {finding.affected.map((a, i) => (
@@ -160,7 +160,7 @@ export default function DrillDown({ module, onClose }) {
             <span className="text-xl">{module.icon}</span>
             <div>
               <p className="font-medium text-slate-100">{module.display_name}</p>
-              <p className="text-xs text-slate-500">{module.summary}</p>
+              <p className="text-xs text-slate-300">{module.summary}</p>
             </div>
           </div>
           <button
