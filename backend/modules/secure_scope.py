@@ -297,25 +297,8 @@ class SecureScopeModule(BaseModule):
                         ))
 
                 # ── Check 2: PMF not enforced ────────────────────────────────
-                if auth_type in PMF_APPLICABLE_AUTH:
-                    disable_pmf = w.get("disable_pmf", False)
-                    if disable_pmf:
-                        site_findings.append(Finding(
-                            severity=Severity.warning,
-                            title=f'"{ssid}" — PMF disabled',
-                            detail=(
-                                f'Protected Management Frames (802.11w) is disabled on "{ssid}". '
-                                f'PMF protects against deauthentication and disassociation attacks. '
-                                f'It is required for WPA3 and strongly recommended for WPA2.'
-                            ),
-                            site_id=sid,
-                            site_name=site_name,
-                            affected=[ssid],
-                            recommendation=(
-                                "Enable PMF on this SSID. Set to 'Required' for WPA3 SSIDs "
-                                "and 'Capable' for WPA2 SSIDs to maintain backward compatibility."
-                            ),
-                        ))
+                # Collected after the loop — consolidated per site below
+                pass
 
                 # ── Check 3: 802.1X with no RADIUS servers ───────────────────
                 if auth_type in ("eap", "eap192"):
@@ -352,55 +335,85 @@ class SecureScopeModule(BaseModule):
                             ),
                         ))
 
-                # ── Check 6: OWE transition mode ─────────────────────────────
-                if auth_type == "open":
-                    owe = auth.get("owe", "disabled")
-                    if owe == "enabled":
-                        site_findings.append(Finding(
-                            severity=Severity.info,
-                            title=f'"{ssid}" — OWE transition mode enabled',
-                            detail=(
-                                f'SSID "{ssid}" is running OWE transition mode, which '
-                                f'simultaneously serves open clients and OWE-encrypted clients. '
-                                f'Transition mode is appropriate as a temporary migration tool '
-                                f'but reduces the security benefit of OWE deployment when left '
-                                f'enabled long-term.'
-                            ),
-                            site_id=sid,
-                            site_name=site_name,
-                            affected=[ssid],
-                            recommendation=(
-                                "Once your client population fully supports OWE, disable "
-                                "transition mode and set OWE to 'Required'. Leaving transition "
-                                "mode enabled permanently means open clients can still connect "
-                                "without encryption, defeating the purpose of OWE."
-                            ),
-                        ))
+            # ── Check 2: PMF disabled — consolidated per site ─────────────────
+            pmf_disabled_ssids = [
+                w.get("ssid", "?") for w in wlans
+                if w.get("auth", {}).get("type", "open") in PMF_APPLICABLE_AUTH
+                and w.get("disable_pmf", False)
+            ]
+            if pmf_disabled_ssids:
+                site_findings.append(Finding(
+                    severity=Severity.warning,
+                    title=f"{site_name} — PMF disabled on {len(pmf_disabled_ssids)} SSID(s)",
+                    detail=(
+                        f"Protected Management Frames (802.11w) is disabled on the following "
+                        f"SSID(s): {', '.join(pmf_disabled_ssids)}. "
+                        f"PMF protects against deauthentication and disassociation attacks. "
+                        f"It is required for WPA3 and strongly recommended for WPA2."
+                    ),
+                    site_id=sid,
+                    site_name=site_name,
+                    affected=pmf_disabled_ssids,
+                    recommendation=(
+                        "Enable PMF on all affected SSIDs. Set to 'Required' for WPA3 SSIDs "
+                        "and 'Capable' for WPA2 SSIDs to maintain backward compatibility."
+                    ),
+                ))
 
-                # ── Check 7: WPA3 transition mode ────────────────────────────
-                if _is_wpa3(w) and auth_type in ("psk", "eap"):
-                    pairwise = auth.get("pairwise", [])
-                    has_wpa2 = any(p in pairwise for p in ("wpa2-ccmp", "wpa2-tkip"))
-                    if has_wpa2:
-                        site_findings.append(Finding(
-                            severity=Severity.info,
-                            title=f'"{ssid}" — WPA3/WPA2 transition mode enabled',
-                            detail=(
-                                f'SSID "{ssid}" is advertising both WPA3 and WPA2 '
-                                f'(transition mode). This is appropriate during migration '
-                                f'but retains WPA2 attack vectors including KRACK and '
-                                f'dictionary attacks on the PSK. Transition mode should '
-                                f'be a temporary bridge, not a permanent configuration.'
-                            ),
-                            site_id=sid,
-                            site_name=site_name,
-                            affected=[ssid],
-                            recommendation=(
-                                "Once all clients support WPA3, disable transition mode "
-                                "and set the SSID to WPA3-only. Audit your client inventory "
-                                "to determine when it is safe to make this change."
-                            ),
-                        ))
+            # ── Check 6: OWE transition mode — consolidated per site ────────────
+            owe_ssids = [
+                w.get("ssid", "?") for w in wlans
+                if w.get("auth", {}).get("type", "open") == "open"
+                and w.get("auth", {}).get("owe", "disabled") == "enabled"
+            ]
+            if owe_ssids:
+                site_findings.append(Finding(
+                    severity=Severity.info,
+                    title=f"{site_name} — {len(owe_ssids)} SSID(s) in OWE transition mode",
+                    detail=(
+                        f"The following SSID(s) are running OWE transition mode, which "
+                        f"simultaneously serves open and OWE-encrypted clients: "
+                        f"{', '.join(owe_ssids)}. "
+                        f"Transition mode is appropriate during migration but reduces the "
+                        f"security benefit of OWE when left enabled long-term."
+                    ),
+                    site_id=sid,
+                    site_name=site_name,
+                    affected=owe_ssids,
+                    recommendation=(
+                        "Once your client population fully supports OWE, disable transition "
+                        "mode and set OWE to 'Required'. Leaving it enabled permanently means "
+                        "open clients can still connect without encryption."
+                    ),
+                ))
+
+            # ── Check 7: WPA3 transition mode — consolidated per site ─────────
+            wpa3_transition_ssids = [
+                w.get("ssid", "?") for w in wlans
+                if _is_wpa3(w)
+                and w.get("auth", {}).get("type", "open") in ("psk", "eap")
+                and any(p in w.get("auth", {}).get("pairwise", []) for p in ("wpa2-ccmp", "wpa2-tkip"))
+            ]
+            if wpa3_transition_ssids:
+                site_findings.append(Finding(
+                    severity=Severity.info,
+                    title=f"{site_name} — {len(wpa3_transition_ssids)} SSID(s) in WPA3/WPA2 transition mode",
+                    detail=(
+                        f"The following SSID(s) are advertising both WPA3 and WPA2 "
+                        f"(transition mode): {', '.join(wpa3_transition_ssids)}. "
+                        f"This is appropriate during migration but retains WPA2 attack "
+                        f"vectors including KRACK and dictionary attacks on the PSK. "
+                        f"Transition mode should be a temporary bridge, not a permanent configuration."
+                    ),
+                    site_id=sid,
+                    site_name=site_name,
+                    affected=wpa3_transition_ssids,
+                    recommendation=(
+                        "Once all clients support WPA3, disable transition mode and set "
+                        "the SSID to WPA3-only. Audit your client inventory to determine "
+                        "when it is safe to make this change."
+                    ),
+                ))
 
             # ── Check 4: Rogue AP detection not enabled ──────────────────────
             rogue = setting.get("rogue", {})
