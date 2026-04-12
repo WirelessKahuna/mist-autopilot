@@ -10,7 +10,7 @@ function scoreToSeverity(score) {
   return 'critical'
 }
 
-export default function OrgHeader({ org, onRefresh, loading, lastUpdated, apiStats }) {
+export default function OrgHeader({ org, onRefresh, loading, lastUpdated, apiStats, onOpenCredentials }) {
   const severity = scoreToSeverity(org?.overall_score)
   const cfg = getSeverityConfig(severity)
 
@@ -24,6 +24,13 @@ export default function OrgHeader({ org, onRefresh, loading, lastUpdated, apiSta
             <span className="text-xs text-slate-500 font-medium px-2 py-0.5 bg-slate-800 rounded-full border border-slate-700">
               Self-Driving Network Review
             </span>
+            <button
+              onClick={onOpenCredentials}
+              title="Connect a different org"
+              className="ml-1 text-slate-500 hover:text-slate-300 transition-colors text-base leading-none"
+            >
+              ⚙
+            </button>
           </div>
           {org && (
             <div className="flex items-center gap-3 text-sm text-slate-400">

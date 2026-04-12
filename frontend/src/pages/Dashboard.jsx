@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import OrgHeader from '../components/OrgHeader'
 import ModuleTile from '../components/ModuleTile'
 import DrillDown from '../components/DrillDown'
-import { getOrgSummary, getStats } from '../api/client'
+import OrgCredentials from '../components/OrgCredentials'
+import { getOrgSummary, getStats, clearSession, clearSessionToken, getSessionToken } from '../api/client'
 
 function ErrorBanner({ message, onRetry }) {
   return (
@@ -24,7 +25,7 @@ function ErrorBanner({ message, onRetry }) {
 function LoadingGrid() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="rounded-xl border border-slate-800 bg-slate-900 p-5 h-44 animate-pulse">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-lg bg-slate-800" />
@@ -48,12 +49,13 @@ function formatTime(date) {
 }
 
 export default function Dashboard() {
-  const [org, setOrg] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [org, setOrg]                     = useState(null)
+  const [loading, setLoading]             = useState(true)
+  const [error, setError]                 = useState(null)
+  const [lastUpdated, setLastUpdated]     = useState(null)
   const [drillDownModule, setDrillDownModule] = useState(null)
-  const [apiStats, setApiStats] = useState(null)
+  const [apiStats, setApiStats]           = useState(null)
+  const [showCredentials, setShowCredentials] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,13 +64,10 @@ export default function Dashboard() {
       const data = await getOrgSummary()
       setOrg(data)
       setLastUpdated(formatTime(new Date()))
-      // Fetch API call stats after scan completes
       try {
         const stats = await getStats()
         setApiStats(stats)
-      } catch (_) {
-        // Stats are non-critical — fail silently
-      }
+      } catch (_) {}
     } catch (e) {
       setError(e.message)
     } finally {
@@ -77,6 +76,18 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const handleConnected = useCallback((info) => {
+    // Reload dashboard with new org credentials
+    load()
+  }, [load])
+
+  const handleDisconnect = useCallback(async () => {
+    await clearSession()
+    clearSessionToken()
+    setOrg(null)
+    load()
+  }, [load])
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 sm:px-8">
@@ -88,7 +99,23 @@ export default function Dashboard() {
           loading={loading}
           lastUpdated={lastUpdated}
           apiStats={apiStats}
+          onOpenCredentials={() => setShowCredentials(true)}
         />
+
+        {/* Active session banner */}
+        {getSessionToken() && org && (
+          <div className="mb-4 flex items-center justify-between bg-mist-600/10 border border-mist-600/30 rounded-lg px-4 py-2">
+            <span className="text-xs text-mist-400">
+              Connected to <span className="font-medium text-mist-300">{org.org_name}</span> via session token
+            </span>
+            <button
+              onClick={handleDisconnect}
+              className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
 
         {error && <div className="mb-6"><ErrorBanner message={error} onRetry={load} /></div>}
 
@@ -131,6 +158,13 @@ export default function Dashboard() {
         <DrillDown
           module={drillDownModule}
           onClose={() => setDrillDownModule(null)}
+        />
+      )}
+
+      {showCredentials && (
+        <OrgCredentials
+          onConnected={handleConnected}
+          onClose={() => setShowCredentials(false)}
         />
       )}
     </div>
