@@ -69,9 +69,9 @@ export default function SitePicker({ orgName, activeSites, inactiveCount, onConf
 
           {/* Inactive sites rollup */}
           {inactiveCount > 0 && (
-            <div className="flex items-center gap-3 py-2 px-3 rounded-lg opacity-40">
+            <div className="flex items-center gap-3 py-2 px-3 rounded-lg opacity-60">
               <div className="w-4 h-4 rounded border border-slate-600" />
-              <span className="text-sm text-slate-500 italic">
+              <span className="text-sm text-slate-400 italic">
                 {inactiveCount} inactive site{inactiveCount !== 1 ? 's' : ''} (no APs assigned)
               </span>
             </div>
