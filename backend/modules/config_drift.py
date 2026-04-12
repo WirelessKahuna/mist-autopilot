@@ -74,6 +74,14 @@ def _is_open(auth_type: str) -> bool:
     return (auth_type or "open").lower() == "open"
 
 
+def _get_auth_type(wlan: dict) -> str:
+    """Extract auth type string from wlan — handles both string and dict auth field."""
+    auth = wlan.get("auth", "open")
+    if isinstance(auth, dict):
+        return auth.get("type", "open")
+    return auth or "open"
+
+
 def _get_vlan(wlan: dict) -> int | None:
     vid = wlan.get("vlan_id")
     if vid is not None:
@@ -192,8 +200,8 @@ def _check_vlan_collisions(site_name: str, site_id: str, wlans: list[dict]) -> l
             continue
 
         for w1, w2 in combinations(group, 2):
-            auth1 = (w1.get("auth") or "open").lower()
-            auth2 = (w2.get("auth") or "open").lower()
+            auth1 = _get_auth_type(w1)
+            auth2 = _get_auth_type(w2)
             ssid1 = w1.get("ssid", w1.get("id", "unknown"))
             ssid2 = w2.get("ssid", w2.get("id", "unknown"))
             iso1  = w1.get("client_isolation", False)
