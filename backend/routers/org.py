@@ -29,7 +29,7 @@ async def get_org_summary(x_session_token: str = Header(None)):
     otherwise falls back to env var defaults.
     """
     client, org_id, selected_site_ids = _get_client_and_org(x_session_token)
-    api_counter.reset_last_refresh()
+    api_counter.reset_last_refresh(org_id)
 
     try:
         org_info = await client.get_org_info(org_id)
@@ -70,7 +70,7 @@ async def get_sites(x_session_token: str = Header(None)):
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
 
 @router.get("/stats")
-async def get_stats():
-    """Return API call counters for display in the dashboard header."""
-    from mist_client import api_counter
-    return api_counter.stats()
+async def get_stats(x_session_token: str = Header(None)):
+    """Return API call counters for the current org."""
+    _, org_id, _ = _get_client_and_org(x_session_token)
+    return api_counter.stats(org_id)

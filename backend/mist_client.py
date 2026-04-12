@@ -303,32 +303,41 @@ from datetime import datetime, timezone
 class _APICounter:
     def __init__(self):
         self.last_refresh: int = 0
-        self.hourly: int = 0
         self._current_hour: int = datetime.now(timezone.utc).hour
+        self._hourly_by_org: dict = {}   # org_id -> hourly count
+        self._active_org: str = "default"
 
-    def increment(self):
+    def _check_hour_reset(self):
         now_hour = datetime.now(timezone.utc).hour
         if now_hour != self._current_hour:
-            self.hourly = 0
+            self._hourly_by_org = {}     # reset all orgs at top of hour
             self._current_hour = now_hour
-        self.last_refresh += 1
-        self.hourly += 1
 
-    def reset_last_refresh(self):
+    def set_active_org(self, org_id: str):
+        """Call at the start of each scan to track which org is being counted."""
+        self._active_org = org_id or "default"
+
+    def increment(self):
+        self._check_hour_reset()
+        self.last_refresh += 1
+        org = self._active_org
+        self._hourly_by_org[org] = self._hourly_by_org.get(org, 0) + 1
+
+    def reset_last_refresh(self, org_id: str | None = None):
         self.last_refresh = 0
+        if org_id:
+            self.set_active_org(org_id)
 
     def reset_all(self):
         self.last_refresh = 0
-        self.hourly = 0
+        self._hourly_by_org = {}
 
-    def stats(self) -> dict:
-        now_hour = datetime.now(timezone.utc).hour
-        if now_hour != self._current_hour:
-            self.hourly = 0
-            self._current_hour = now_hour
+    def stats(self, org_id: str | None = None) -> dict:
+        self._check_hour_reset()
+        org = org_id or self._active_org
         return {
             "last_refresh": self.last_refresh,
-            "hourly": self.hourly,
+            "hourly": self._hourly_by_org.get(org, 0),
         }
 
 
