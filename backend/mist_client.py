@@ -142,6 +142,18 @@ class MistClient:
     async def get_site_wlans(self, site_id: str) -> list:
         return await self.get(f"/api/v1/sites/{site_id}/wlans")
 
+    async def get_site_wlans_derived(self, site_id: str) -> list:
+        """
+        Fetch fully scope-resolved WLANs for a site.
+        GET /api/v1/sites/{site_id}/wlans/derived
+        Returns WLANs actually active at the site with template/exclusion logic
+        already evaluated by Mist backend.
+        Distinguishing template vs site-local:
+          site_id == '00000000-0000-0000-0000-000000000000' -> template-pushed
+          site_id == actual site UUID                       -> site-local config
+        """
+        return await self.get(f"/api/v1/sites/{site_id}/wlans/derived", use_cache=True)
+
     async def get_wlan_templates(self, org_id: str) -> list:
         return await self.get(f"/api/v1/orgs/{org_id}/wlantemplates")
 

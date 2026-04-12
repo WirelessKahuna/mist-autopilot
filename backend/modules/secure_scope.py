@@ -76,23 +76,17 @@ class SecureScopeModule(BaseModule):
     async def analyze(self, org_id: str, sites: list[dict], client: MistClient) -> ModuleOutput:
 
         # ── 1. Fetch all WLANs + site settings in parallel ───────────────────
+        # Use /wlans/derived for fully scope-resolved WLANs per site
         results = await asyncio.gather(
-            client.get_org_wlans(org_id),
-            *[client.get_site_wlans(site["id"]) for site in sites],
+            *[client.get_site_wlans_derived(site["id"]) for site in sites],
             *[client.get(f"/api/v1/sites/{site['id']}/setting", use_cache=True)
               for site in sites],
             return_exceptions=True,
         )
 
         n = len(sites)
-        org_wlans       = results[0] if not isinstance(results[0], Exception) else []
-        site_wlan_lists = results[1:n+1]
-        site_setting_list = results[n+1:]
-
-        # Annotate org-level WLANs
-        for w in org_wlans:
-            w["_site_id"]   = None
-            w["_site_name"] = "org-level"
+        site_wlan_lists   = results[:n]
+        site_setting_list = results[n:]
 
         # Build per-site WLAN and settings maps
         site_map      = {s["id"]: s.get("name", s["id"]) for s in sites}
@@ -114,7 +108,7 @@ class SecureScopeModule(BaseModule):
         psk_to_ssids: dict[str, set[str]] = defaultdict(set)
         psk_to_sites: dict[str, set[str]] = defaultdict(set)
 
-        all_wlans: list[dict] = list(org_wlans)
+        all_wlans: list[dict] = []
         for wlan_list in site_wlans.values():
             all_wlans.extend(wlan_list)
 

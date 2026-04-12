@@ -270,21 +270,18 @@ class ConfigDriftModule(BaseModule):
 
     async def analyze(self, org_id: str, sites: list[dict], client: MistClient) -> ModuleOutput:
 
-        # 1. Fetch all WLAN data in parallel
+        NULL_SITE_ID = "00000000-0000-0000-0000-000000000000"
+
+        # 1. Fetch derived WLANs per site + wlan templates in parallel
+        # /wlans/derived returns fully scope-resolved WLANs including template-pushed ones
         results = await asyncio.gather(
-            client.get_org_wlans(org_id),
             client.get_wlan_templates(org_id),
-            *[client.get_site_wlans(site["id"]) for site in sites],
+            *[client.get_site_wlans_derived(site["id"]) for site in sites],
             return_exceptions=True,
         )
 
-        org_wlans      = results[0] if not isinstance(results[0], Exception) else []
-        wlan_templates = results[1] if not isinstance(results[1], Exception) else []
-        site_wlan_lists = results[2:]
-
-        for wlan in org_wlans:
-            wlan["_site_name"] = "org-level"
-            wlan["_source"]    = "org"
+        wlan_templates  = results[0] if not isinstance(results[0], Exception) else []
+        site_wlan_lists = results[1:]
 
         templated_ssid_names = {
             wlan.get("ssid")
@@ -293,27 +290,57 @@ class ConfigDriftModule(BaseModule):
         }
 
         annotated_site_wlans: dict[str, list[dict]] = {}
+        all_findings: list[Finding] = []
+
         for site, wlan_list in zip(sites, site_wlan_lists):
             if isinstance(wlan_list, Exception):
                 logger.warning(f"Could not fetch WLANs for site {site['id']}: {wlan_list}")
                 continue
-            for wlan in wlan_list:
-                wlan["_site_name"] = site.get("name", site["id"])
-                wlan["_site_id"]   = site["id"]
-                wlan["_source"]    = "site"
-            annotated_site_wlans[site["id"]] = wlan_list
 
-        # 2. SSID Family Analysis
+            site_id   = site["id"]
+            site_name = site.get("name", site_id)
+
+            for wlan in wlan_list:
+                wlan_site_id = wlan.get("site_id", NULL_SITE_ID)
+                is_local     = wlan_site_id not in (NULL_SITE_ID, None, "")
+                wlan["_site_name"] = site_name
+                wlan["_site_id"]   = site_id
+                wlan["_source"]    = "site-local" if is_local else "template"
+                wlan["_is_local"]  = is_local
+
+            annotated_site_wlans[site_id] = wlan_list
+
+            # ── Check: site-local WLANs (not template-pushed) ────────────────
+            local_wlans = [w for w in wlan_list if w.get("_is_local")]
+            if local_wlans:
+                local_ssids = [w.get("ssid", w.get("id", "unknown")) for w in local_wlans]
+                all_findings.append(Finding(
+                    severity=Severity.warning,
+                    title=f"{site_name} — {len(local_wlans)} site-local WLAN(s) not using templates",
+                    detail=(
+                        f"{len(local_wlans)} WLAN(s) at {site_name} are configured directly "
+                        f"at the site level rather than being pushed from a WLAN template: "
+                        f"{', '.join(local_ssids)}. "
+                        f"Site-local WLANs create configuration drift risk — changes must "
+                        f"be made individually per site rather than centrally."
+                    ),
+                    site_id=site_id,
+                    site_name=site_name,
+                    affected=local_ssids,
+                    recommendation=(
+                        "Migrate site-local WLANs into a WLAN Template and push to sites. "
+                        "Use Mist Variables (e.g. {{vlan_id}}) for any per-site differences. "
+                        "This enables consistent config governance and reduces operational overhead."
+                    ),
+                ))
+
+        # 2. SSID Family Analysis — using derived WLANs per site
         family_map: dict[str, list[dict]] = defaultdict(list)
-        for wlan in org_wlans:
-            if wlan.get("ssid"):
-                family_map[wlan["ssid"]].append(wlan)
         for wlan_list in annotated_site_wlans.values():
             for wlan in wlan_list:
                 if wlan.get("ssid"):
                     family_map[wlan["ssid"]].append(wlan)
 
-        all_findings: list[Finding] = []
         for ssid_name, instances in family_map.items():
             if ssid_name in templated_ssid_names:
                 continue

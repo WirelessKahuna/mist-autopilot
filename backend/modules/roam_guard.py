@@ -99,22 +99,16 @@ class RoamGuardModule(BaseModule):
 
         # ── 1. Parallel fetch ──────────────────────────────────────────────
         results = await asyncio.gather(
-            client.get_org_wlans(org_id),
-            *[client.get_site_wlans(site["id"])                                    for site in sites],
+            *[client.get_site_wlans_derived(site["id"])                            for site in sites],
             *[client.get_site_sle_metric(site["id"], "site", "roaming", "7d")     for site in sites],
             *[client.get_site_roam_events(site["id"], "7d")                        for site in sites],
             return_exceptions=True,
         )
 
         n = len(sites)
-        org_wlans          = results[0] if not isinstance(results[0], Exception) else []
-        site_wlan_lists    = results[1      : n+1]
-        site_sle_results   = results[n+1    : 2*n+1]
-        site_event_results = results[2*n+1  :]
-
-        site_map = {s["id"]: s.get("name", s["id"]) for s in sites}
-        for w in org_wlans:
-            w["_site_id"] = None
+        site_wlan_lists    = results[0      : n]
+        site_sle_results   = results[n      : 2*n]
+        site_event_results = results[2*n    :]
 
         # ── 2. Per-site analysis ───────────────────────────────────────────
         all_findings: list[Finding] = []
@@ -124,10 +118,10 @@ class RoamGuardModule(BaseModule):
             sites, site_wlan_lists, site_sle_results, site_event_results
         ):
             sid       = site["id"]
-            site_name = site_map[sid]
+            site_name = site.get("name", sid)
             site_findings: list[Finding] = []
 
-            wlans = (wlan_list if not isinstance(wlan_list, Exception) else []) + org_wlans
+            wlans = wlan_list if not isinstance(wlan_list, Exception) else []
 
             # SLE roaming score
             roaming_score: int | None = None
