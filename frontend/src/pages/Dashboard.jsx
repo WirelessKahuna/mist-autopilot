@@ -57,6 +57,8 @@ export default function Dashboard() {
   const [apiStats, setApiStats]           = useState(null)
   const [showCredentials, setShowCredentials] = useState(false)
 
+  const [scanningOrg, setScanningOrg]       = useState(null)  // name of org being scanned
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -64,12 +66,14 @@ export default function Dashboard() {
       const data = await getOrgSummary()
       setOrg(data)
       setLastUpdated(formatTime(new Date()))
+      setScanningOrg(null)
       try {
         const stats = await getStats()
         setApiStats(stats)
       } catch (_) {}
     } catch (e) {
       setError(e.message)
+      setScanningOrg(null)
     } finally {
       setLoading(false)
     }
@@ -78,7 +82,12 @@ export default function Dashboard() {
   useEffect(() => { load() }, [load])
 
   const handleConnected = useCallback((info) => {
-    // Reload dashboard with new org credentials
+    // Immediately clear old org data and show loading skeleton
+    setOrg(null)
+    setError(null)
+    setLastUpdated(null)
+    setApiStats(null)
+    setScanningOrg(info.orgName)
     load()
   }, [load])
 
@@ -86,6 +95,7 @@ export default function Dashboard() {
     await clearSession()
     clearSessionToken()
     setOrg(null)
+    setScanningOrg(null)
     load()
   }, [load])
 
@@ -102,11 +112,23 @@ export default function Dashboard() {
           onOpenCredentials={() => setShowCredentials(true)}
         />
 
-        {/* Active session banner */}
-        {getSessionToken() && org && (
-          <div className="mb-4 flex items-center justify-between bg-mist-600/10 border border-mist-600/30 rounded-lg px-4 py-2">
+        {/* Scanning new org banner */}
+        {scanningOrg && loading && (
+          <div className="mb-4 flex items-center gap-3 bg-mist-600/10 border border-mist-600/30 rounded-lg px-4 py-2.5">
+            <span className="animate-spin text-mist-400">↻</span>
             <span className="text-xs text-mist-400">
-              Connected to <span className="font-medium text-mist-300">{org.org_name}</span> via session token
+              Scanning <span className="font-medium text-mist-300">{scanningOrg}</span>…
+            </span>
+          </div>
+        )}
+
+        {/* Active session banner (shown after scan completes) */}
+        {getSessionToken() && org && !scanningOrg && (
+          <div className="mb-4 flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2">
+            <span className="text-xs text-slate-400">
+              Viewing <span className="font-medium text-slate-200">{org.org_name}</span>
+              <span className="text-slate-600 mx-2">·</span>
+              <span className="text-slate-500">{org.site_count} site{org.site_count !== 1 ? 's' : ''} scanned</span>
             </span>
             <button
               onClick={handleDisconnect}

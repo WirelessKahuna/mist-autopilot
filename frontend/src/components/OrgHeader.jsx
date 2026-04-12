@@ -24,38 +24,40 @@ export default function OrgHeader({ org, onRefresh, loading, lastUpdated, apiSta
             <span className="text-xs text-slate-500 font-medium px-2 py-0.5 bg-slate-800 rounded-full border border-slate-700">
               Self-Driving Network Review
             </span>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-slate-400">
+            {/* Org name pill — always visible, always clickable */}
             <button
               onClick={onOpenCredentials}
-              title="Connect a different org"
-              className="ml-1 text-slate-500 hover:text-slate-300 transition-colors text-base leading-none"
+              className="flex items-center gap-1.5 font-medium text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-1 transition-all text-sm"
             >
-              ⚙
+              <span>{org ? org.org_name : 'Connect Org'}</span>
+              <span className="text-slate-500 text-xs">{org ? '⇄' : '→'}</span>
             </button>
+            {org && (
+              <>
+                <span className="text-slate-600">·</span>
+                <span>{org.site_count} sites</span>
+              </>
+            )}
+            {lastUpdated && (
+              <>
+                <span className="text-slate-600">·</span>
+                <span>Updated {lastUpdated}</span>
+              </>
+            )}
+            {apiStats && (
+              <>
+                <span className="text-slate-600">·</span>
+                <span className="text-slate-500">
+                  API Calls — Last:&nbsp;
+                  <span className="text-slate-300">{apiStats.last_refresh}</span>
+                  &nbsp;·&nbsp;Hour:&nbsp;
+                  <span className="text-slate-300">{apiStats.hourly}</span>
+                </span>
+              </>
+            )}
           </div>
-          {org && (
-            <div className="flex items-center gap-3 text-sm text-slate-400">
-              <span className="font-medium text-slate-200">{org.org_name}</span>
-              <span className="text-slate-600">·</span>
-              <span>{org.site_count} sites</span>
-              {lastUpdated && (
-                <>
-                  <span className="text-slate-600">·</span>
-                  <span>Updated {lastUpdated}</span>
-                </>
-              )}
-              {apiStats && (
-                <>
-                  <span className="text-slate-600">·</span>
-                  <span className="text-slate-500">
-                    API Calls — Last:&nbsp;
-                    <span className="text-slate-300">{apiStats.last_refresh}</span>
-                    &nbsp;·&nbsp;Hour:&nbsp;
-                    <span className="text-slate-300">{apiStats.hourly}</span>
-                  </span>
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
