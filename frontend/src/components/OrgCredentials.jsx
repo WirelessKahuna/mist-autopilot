@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { connectOrg, selectSites, setSessionToken, clearSessionToken } from '../api/client'
-import { getSavedOrgs, saveOrg, forgetOrg, isOrgSaved } from '../utils/savedOrgs'
+import { getSavedOrgs, saveOrg, forgetOrg, isOrgSaved, setLastUsedOrg } from '../utils/savedOrgs'
 import SitePicker from './SitePicker'
 
 const STEPS = { INPUT: 'input', SITE_PICKER: 'site_picker' }
@@ -39,6 +39,7 @@ export default function OrgCredentials({ onConnected, onClose }) {
         saveOrg(connectResult.org_id, connectResult.org_name, token.trim())
         setSavedOrgs(getSavedOrgs())
       }
+      setLastUsedOrg(connectResult.org_id)
       onConnected({
         orgName: connectResult.org_name,
         orgId:   connectResult.org_id,

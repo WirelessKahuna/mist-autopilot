@@ -3,7 +3,18 @@ import OrgHeader from '../components/OrgHeader'
 import ModuleTile from '../components/ModuleTile'
 import DrillDown from '../components/DrillDown'
 import OrgCredentials from '../components/OrgCredentials'
-import { getOrgSummary, getStats, clearSession, clearSessionToken, getSessionToken } from '../api/client'
+import OrgWelcome from '../components/OrgWelcome'
+import { getOrgSummary, getStats, clearSession, clearSessionToken, getSessionToken, setSessionToken, connectOrg, selectSites } from '../api/client'
+import { getSavedOrgs, getLastUsedOrg, setLastUsedOrg } from '../utils/savedOrgs'
+
+// Startup modes
+const MODE = {
+  BOOTING:      'booting',       // checking localStorage, haven't decided yet
+  AUTO_CONNECT: 'auto_connect',  // silently connecting to last used org
+  WELCOME:      'welcome',       // multiple saved orgs — show picker
+  DASHBOARD:    'dashboard',     // normal dashboard view
+  CREDENTIALS:  'credentials',   // credentials modal open
+}
 
 function ErrorBanner({ message, onRetry }) {
   return (
@@ -44,21 +55,39 @@ function LoadingGrid() {
   )
 }
 
+function AutoConnectScreen({ orgName }) {
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <h1 className="text-2xl font-semibold text-white">Mist Autopilot</h1>
+        <p className="text-sm text-slate-500">Self-Driving Network Review</p>
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <span className="animate-spin text-mist-400 text-lg">↻</span>
+          <span className="text-sm text-slate-400">
+            Connecting to <span className="text-slate-200 font-medium">{orgName}</span>…
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function formatTime(date) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 export default function Dashboard() {
-  const [org, setOrg]                     = useState(null)
-  const [loading, setLoading]             = useState(true)
-  const [error, setError]                 = useState(null)
-  const [lastUpdated, setLastUpdated]     = useState(null)
+  const [mode, setMode]           = useState(MODE.BOOTING)
+  const [savedOrgs, setSavedOrgs] = useState([])
+  const [org, setOrg]             = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
   const [drillDownModule, setDrillDownModule] = useState(null)
-  const [apiStats, setApiStats]           = useState(null)
-  const [showCredentials, setShowCredentials] = useState(false)
+  const [apiStats, setApiStats]   = useState(null)
+  const [scanningOrg, setScanningOrg] = useState(null)
 
-  const [scanningOrg, setScanningOrg]       = useState(null)  // name of org being scanned
-
+  // ── Load dashboard data ──────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -67,6 +96,7 @@ export default function Dashboard() {
       setOrg(data)
       setLastUpdated(formatTime(new Date()))
       setScanningOrg(null)
+      setMode(MODE.DASHBOARD)
       try {
         const stats = await getStats()
         setApiStats(stats)
@@ -74,20 +104,68 @@ export default function Dashboard() {
     } catch (e) {
       setError(e.message)
       setScanningOrg(null)
+      setMode(MODE.DASHBOARD)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  // ── Auto-connect a saved org (skip site picker, use all sites) ───────────
+  const autoConnect = useCallback(async (savedOrg) => {
+    setScanningOrg(savedOrg.name)
+    setMode(MODE.AUTO_CONNECT)
+    try {
+      const result = await connectOrg(savedOrg.token)
+      setSessionToken(result.session_id)
+      // Use all active sites — no picker for auto-connect
+      await selectSites(result.active_sites.map(s => s.id))
+      setLastUsedOrg(result.org_id)
+      await load()
+    } catch (e) {
+      // Auto-connect failed — fall through to env var org
+      setScanningOrg(null)
+      setMode(MODE.DASHBOARD)
+      await load()
+    }
+  }, [load])
 
+  // ── Startup logic ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const orgs = getSavedOrgs()
+    setSavedOrgs(orgs)
+
+    if (orgs.length === 0) {
+      // No saved orgs — load env var org directly
+      setMode(MODE.DASHBOARD)
+      load()
+      return
+    }
+
+    if (orgs.length === 1) {
+      // One saved org — auto-connect silently
+      autoConnect(orgs[0])
+      return
+    }
+
+    // Multiple saved orgs — check for last used
+    const lastUsed = getLastUsedOrg()
+    if (lastUsed) {
+      // Auto-connect to last used org
+      autoConnect(lastUsed)
+    } else {
+      // No last used — show welcome picker
+      setMode(MODE.WELCOME)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleConnected = useCallback((info) => {
-    // Immediately clear old org data and show loading skeleton
     setOrg(null)
     setError(null)
     setLastUpdated(null)
     setApiStats(null)
     setScanningOrg(info.orgName)
+    setMode(MODE.DASHBOARD)
     load()
   }, [load])
 
@@ -99,6 +177,56 @@ export default function Dashboard() {
     load()
   }, [load])
 
+  const handleWelcomeSelect = useCallback((savedOrg) => {
+    autoConnect(savedOrg)
+  }, [autoConnect])
+
+  const handleWelcomeConnectNew = useCallback(() => {
+    setMode(MODE.CREDENTIALS)
+  }, [])
+
+  const handleRefreshWelcomeList = useCallback(() => {
+    const orgs = getSavedOrgs()
+    setSavedOrgs(orgs)
+    if (orgs.length === 0) {
+      setMode(MODE.DASHBOARD)
+      load()
+    }
+  }, [load])
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  // Booting — brief flash, shouldn't be seen
+  if (mode === MODE.BOOTING) return null
+
+  // Auto-connecting
+  if (mode === MODE.AUTO_CONNECT) {
+    return <AutoConnectScreen orgName={scanningOrg} />
+  }
+
+  // Welcome screen — multiple saved orgs, no last used
+  if (mode === MODE.WELCOME) {
+    return (
+      <>
+        <OrgWelcome
+          savedOrgs={savedOrgs}
+          onSelect={handleWelcomeSelect}
+          onConnectNew={handleWelcomeConnectNew}
+          onRefreshList={handleRefreshWelcomeList}
+        />
+        {mode === MODE.CREDENTIALS && (
+          <OrgCredentials
+            onConnected={handleConnected}
+            onClose={() => setMode(MODE.WELCOME)}
+          />
+        )}
+      </>
+    )
+  }
+
+  // Credentials modal open over dashboard
+  const showCredentials = mode === MODE.CREDENTIALS
+
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 sm:px-8">
       <div className="max-w-screen-xl mx-auto">
@@ -109,7 +237,7 @@ export default function Dashboard() {
           loading={loading}
           lastUpdated={lastUpdated}
           apiStats={apiStats}
-          onOpenCredentials={() => setShowCredentials(true)}
+          onOpenCredentials={() => setMode(MODE.CREDENTIALS)}
         />
 
         {/* Scanning new org banner */}
@@ -122,7 +250,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Active session banner (shown after scan completes) */}
+        {/* Active session banner */}
         {getSessionToken() && org && !scanningOrg && (
           <div className="mb-4 flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2">
             <span className="text-xs text-slate-400">
@@ -156,7 +284,6 @@ export default function Dashboard() {
           )
         }
 
-        {/* Summary bar */}
         {org && !loading && (
           <div className="mt-8 flex flex-wrap gap-6 text-xs text-slate-500 border-t border-slate-800 pt-5">
             {['ok', 'warning', 'critical'].map(sev => {
@@ -186,7 +313,7 @@ export default function Dashboard() {
       {showCredentials && (
         <OrgCredentials
           onConnected={handleConnected}
-          onClose={() => setShowCredentials(false)}
+          onClose={() => setMode(MODE.DASHBOARD)}
         />
       )}
     </div>
