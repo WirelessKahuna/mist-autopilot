@@ -88,26 +88,25 @@ class MarvisIQModule(BaseModule):
     async def analyze(self, org_id: str, sites: list[dict], client: MistClient) -> ModuleOutput:
 
         # ── 1. Fetch Marvis actions ───────────────────────────────────────────
-        # Endpoint: /api/v1/labs/orgs/{org_id}/marvis_actions
-        # Note: this is a /labs/ endpoint, not the standard /api/v1/orgs/ path
-        # Params: start/end epoch timestamps, interval=3600, query=group_by_category_symptom
+        # Endpoint confirmed via Chrome DevTools network capture from manage.mist.com
+        # The portal uses /api/v1/labs/orgs/{org_id}/suggestions for the action list
         end_time   = int(time.time())
         start_time = end_time - (7 * 24 * 3600)  # 7 days
 
         try:
             result = await client.get(
-                f"/api/v1/labs/orgs/{org_id}/marvis_actions",
+                f"/api/v1/labs/orgs/{org_id}/suggestions",
                 params={
-                    "start":    start_time,
-                    "end":      end_time,
-                    "interval": 3600,
-                    "query":    "group_by_category_symptom",
-                    "limit":    1000,
-                    "active":   "true",
+                    "active":           "true",
+                    "display_priority": "high",
+                    "query":            "group_by_category_symptom",
+                    "start":            start_time,
+                    "end":              end_time,
+                    "page":             1,
+                    "limit":            100,
                 },
                 use_cache=False,
             )
-            # Response may be list or dict with 'data' key
             if isinstance(result, dict):
                 actions = result.get("data", result.get("results", []))
             elif isinstance(result, list):
