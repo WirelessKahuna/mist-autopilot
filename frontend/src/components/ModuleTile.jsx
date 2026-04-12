@@ -47,7 +47,7 @@ export default function ModuleTile({ module, onDrillDown }) {
       </div>
 
       {/* Summary */}
-      <p className={`text-xs leading-relaxed ${isComingSoon ? 'text-slate-600' : 'text-slate-300'}`}>
+      <p className={`text-xs leading-relaxed flex-grow ${isComingSoon ? 'text-slate-600' : 'text-slate-300'}`}>
         {isError ? `⚠ ${data.error}` : data.summary}
       </p>
 
