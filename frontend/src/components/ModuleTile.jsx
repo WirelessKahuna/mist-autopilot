@@ -47,13 +47,13 @@ export default function ModuleTile({ module, onDrillDown }) {
       </div>
 
       {/* Summary */}
-      <p className={`text-xs leading-relaxed ${isComingSoon ? 'text-slate-600' : 'text-slate-400'}`}>
+      <p className={`text-xs leading-relaxed ${isComingSoon ? 'text-slate-600' : 'text-slate-300'}`}>
         {isError ? `⚠ ${data.error}` : data.summary}
       </p>
 
-      {/* Finding count badges */}
+      {/* Finding count badges — pushed to bottom above footer */}
       {!isComingSoon && !isError && data.findings?.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mt-auto">
           {['critical', 'warning', 'info'].map(sev => {
             const count = data.findings.filter(f => f.severity === sev).length
             if (!count) return null
@@ -68,12 +68,12 @@ export default function ModuleTile({ module, onDrillDown }) {
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-800">
+      <div className="flex items-center justify-between pt-2 border-t border-slate-800">
         {isComingSoon ? (
           <span className="text-xs text-slate-600">In development</span>
         ) : (
           <span className="text-xs text-slate-500">
-            {data.sites?.length ?? 0} sites analysed
+            {data.sites?.length > 0 ? `${data.sites.length} sites analysed` : 'Org-level analysis'}
           </span>
         )}
         {!isComingSoon && (
