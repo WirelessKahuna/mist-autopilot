@@ -361,7 +361,7 @@ class ClientExperienceModule(BaseModule):
                 parts.append(f"{improving_sites} improving")
             if stable_sites:
                 parts.append(f"{stable_sites} stable")
-            summary = f"{active_sites} sites analysed — " + ", ".join(parts) + "."
+            summary = f"{active_sites} sites analyzed — " + ", ".join(parts) + "."
 
         return ModuleOutput(
             module_id=self.module_id,

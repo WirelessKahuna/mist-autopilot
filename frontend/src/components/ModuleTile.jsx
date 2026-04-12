@@ -73,7 +73,7 @@ export default function ModuleTile({ module, onDrillDown }) {
           <span className="text-xs text-slate-600">In development</span>
         ) : (
           <span className="text-xs text-slate-500">
-            {data.sites?.length > 0 ? `${data.sites.length} sites analysed` : 'Org-level analysis'}
+            {data.sites?.length > 0 ? `${data.sites.length} sites analyzed` : 'Org-level analysis'}
           </span>
         )}
         {!isComingSoon && (

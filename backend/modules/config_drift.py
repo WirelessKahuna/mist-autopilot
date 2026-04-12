@@ -394,7 +394,7 @@ class ConfigDriftModule(BaseModule):
             if warning_count:  parts.append(f"{warning_count} warnings")
             if info_count:     parts.append(f"{info_count} info")
             summary = (
-                f"{family_count} SSID families analysed — "
+                f"{family_count} SSID families analyzed — "
                 + ", ".join(parts)
                 + f" across {len(sites)} sites."
             )

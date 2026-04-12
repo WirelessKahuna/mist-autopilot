@@ -320,21 +320,35 @@ class SecureScopeModule(BaseModule):
                 # ── Check 3: 802.1X with no RADIUS servers ───────────────────
                 if auth_type in ("eap", "eap192"):
                     auth_servers = w.get("auth_servers", [])
-                    if not auth_servers:
+                    mist_nac     = w.get("mist_nac", {}) or {}
+                    hotspot20    = w.get("hotspot20", {}) or {}
+
+                    uses_mist_nac  = mist_nac.get("enabled", False)
+                    uses_hotspot20 = hotspot20.get("enabled", False)
+                    uses_radsec    = any(
+                        str(s.get("secret", "")).upper() == "RADSEC"
+                        for s in auth_servers
+                        if isinstance(s, dict)
+                    )
+
+                    # Suppress if using Mist Access Assurance, RADSEC, or Passpoint
+                    if not auth_servers and not uses_mist_nac and not uses_hotspot20:
                         site_findings.append(Finding(
                             severity=Severity.warning,
                             title=f'"{ssid}" — 802.1X SSID with no RADIUS servers configured',
                             detail=(
                                 f'SSID "{ssid}" is configured for 802.1X (Enterprise) '
                                 f'authentication but has no RADIUS authentication servers '
-                                f'defined. Clients will fail to authenticate.'
+                                f'defined and is not using Mist Access Assurance. '
+                                f'Clients will fail to authenticate.'
                             ),
                             site_id=sid,
                             site_name=site_name,
                             affected=[ssid],
                             recommendation=(
                                 "Add RADIUS authentication servers under the SSID configuration, "
-                                "or use Mist Access Assurance as the authentication server."
+                                "enable Mist Access Assurance (mist_nac), or configure RADSEC "
+                                "for Passpoint/OpenRoaming deployments."
                             ),
                         ))
 
