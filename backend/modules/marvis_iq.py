@@ -29,6 +29,7 @@ Checks performed:
 
 import asyncio
 import logging
+import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -87,10 +88,23 @@ class MarvisIQModule(BaseModule):
     async def analyze(self, org_id: str, sites: list[dict], client: MistClient) -> ModuleOutput:
 
         # ── 1. Fetch Marvis actions ───────────────────────────────────────────
+        # Endpoint: /api/v1/labs/orgs/{org_id}/marvis_actions
+        # Note: this is a /labs/ endpoint, not the standard /api/v1/orgs/ path
+        # Params: start/end epoch timestamps, interval=3600, query=group_by_category_symptom
+        end_time   = int(time.time())
+        start_time = end_time - (7 * 24 * 3600)  # 7 days
+
         try:
             result = await client.get(
-                f"/api/v1/orgs/{org_id}/marvis/actions",
-                params={"limit": 1000},
+                f"/api/v1/labs/orgs/{org_id}/marvis_actions",
+                params={
+                    "start":    start_time,
+                    "end":      end_time,
+                    "interval": 3600,
+                    "query":    "group_by_category_symptom",
+                    "limit":    1000,
+                    "active":   "true",
+                },
                 use_cache=False,
             )
             # Response may be list or dict with 'data' key
