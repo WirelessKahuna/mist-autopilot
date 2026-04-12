@@ -132,6 +132,30 @@ class RFFingerprintModule(BaseModule):
             aps = [a for a in aps if isinstance(a, dict)]
             cfg = setting if not isinstance(setting, Exception) else {}
 
+            # ── Check 0: No RF template assigned ──────────────────────────
+            if not cfg.get("rf_template_id"):
+                site_findings.append(Finding(
+                    severity=Severity.warning,
+                    title=f"{site_name} — no RF template assigned",
+                    detail=(
+                        f"{site_name} does not have an RF template assigned. "
+                        f"Without an RF template, channel selection, TX power, "
+                        f"band configuration, and RRM settings are managed manually "
+                        f"per site with no centralized governance. This increases "
+                        f"the risk of configuration drift and inconsistent RF policy "
+                        f"across sites."
+                    ),
+                    site_id=sid,
+                    site_name=site_name,
+                    affected=[site_name],
+                    recommendation=(
+                        "Create an RF template under Organization > RF Templates and "
+                        "assign it to this site. RF templates enable centralized, "
+                        "consistent RRM configuration and allow global changes to "
+                        "propagate to all assigned sites simultaneously."
+                    ),
+                ))
+
             # ── Check 1: Band utilization imbalance ────────────────────────
             clients_24 = 0
             clients_5  = 0
