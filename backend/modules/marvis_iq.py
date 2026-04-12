@@ -107,13 +107,31 @@ class MarvisIQModule(BaseModule):
                 },
                 use_cache=False,
             )
+            # Response structure: {"data": {"ap": {"ap_disconnect": {"ap": 1}}, "total": 1}}
+            # Nested: category -> symptom -> entity_type -> count
             if isinstance(result, dict):
-                actions = result.get("data", result.get("results", []))
-            elif isinstance(result, list):
-                actions = result
-            elif isinstance(result, str):
-                # Unexpected string response — log and return error
-                return self._error_output(f"Unexpected response from Marvis actions endpoint: {result[:200]}")
+                raw_data = result.get("data", {})
+                total    = raw_data.pop("total", 0) if isinstance(raw_data, dict) else 0
+                # Flatten into action-like objects for our analysis logic
+                actions = []
+                if isinstance(raw_data, dict):
+                    for category, symptoms in raw_data.items():
+                        if not isinstance(symptoms, dict):
+                            continue
+                        for symptom, entity_counts in symptoms.items():
+                            if not isinstance(entity_counts, dict):
+                                continue
+                            count = sum(entity_counts.values()) if isinstance(entity_counts, dict) else 0
+                            actions.append({
+                                "category":    category,
+                                "symptom":     symptom,
+                                "status":      "open",
+                                "severity":    60,
+                                "batch_count": count,
+                                "self_drivable": False,
+                                "site_id":     "",
+                                "_count":      count,
+                            })
             else:
                 actions = []
         except MistAPIError as e:
