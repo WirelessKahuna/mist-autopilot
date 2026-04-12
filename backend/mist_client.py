@@ -30,10 +30,15 @@ class MistAPIError(Exception):
 
 
 class MistClient:
-    def __init__(self):
-        self.base_url = settings.mist_api_base_url.rstrip("/")
+    def __init__(self, api_token: str | None = None, base_url: str | None = None):
+        """
+        If api_token is provided, use it (session credential).
+        Otherwise fall back to env var defaults.
+        """
+        self.base_url = (base_url or settings.mist_api_base_url).rstrip("/")
+        token = api_token or settings.mist_api_token
         self.headers = {
-            "Authorization": f"Token {settings.mist_api_token}",
+            "Authorization": f"Token {token}",
             "Content-Type": "application/json",
         }
         self._last_request_time = 0.0
@@ -275,8 +280,19 @@ class MistClient:
         return all_devices
 
 
-# Singleton instance — imported by all modules
+# Default singleton instance — uses env var credentials
+# Modules import this for standard operation
 mist = MistClient()
+
+
+def get_mist_client(api_token: str | None = None) -> "MistClient":
+    """
+    Factory — returns a session-scoped client if api_token provided,
+    otherwise returns the default env-var singleton.
+    """
+    if api_token:
+        return MistClient(api_token=api_token)
+    return mist
 
 
 # ---------------------------------------------------------------------------
