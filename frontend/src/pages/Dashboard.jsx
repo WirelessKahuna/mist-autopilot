@@ -5,6 +5,7 @@ import DrillDown from '../components/DrillDown'
 import OrgCredentials from '../components/OrgCredentials'
 import OrgWelcome from '../components/OrgWelcome'
 import { getOrgSummary, getStats, clearSession, clearSessionToken, getSessionToken, setSessionToken, connectOrg, selectSites } from '../api/client'
+import ReportGenerator from '../components/ReportGenerator'
 import { getSavedOrgs, getLastUsedOrg, setLastUsedOrg } from '../utils/savedOrgs'
 
 // Startup modes
@@ -285,20 +286,38 @@ export default function Dashboard() {
         }
 
         {org && !loading && (
-          <div className="mt-8 flex flex-wrap gap-6 text-xs text-slate-500 border-t border-slate-800 pt-5">
-            {['ok', 'warning', 'critical'].map(sev => {
-              const count = org.modules?.filter(m => m.severity === sev).length ?? 0
-              const labels = { ok: '✓ Healthy', warning: '⚠ Warning', critical: '✕ Critical' }
-              const colors = { ok: 'text-green-400', warning: 'text-amber-400', critical: 'text-red-400' }
-              return (
-                <span key={sev} className={count > 0 ? colors[sev] : 'text-slate-600'}>
-                  {labels[sev]}: {count}
-                </span>
-              )
-            })}
-            <span className="ml-auto">
-              {org.modules?.filter(m => m.status === 'coming_soon').length} modules in development
-            </span>
+          <div className="mt-8 border-t border-slate-800 pt-5 space-y-3">
+            <div className="flex flex-wrap gap-6 text-xs text-slate-500">
+              {['ok', 'warning', 'critical'].map(sev => {
+                const count = org.modules?.filter(m => m.severity === sev).length ?? 0
+                const labels = { ok: '✓ Healthy', warning: '⚠ Warning', critical: '✕ Critical' }
+                const colors = { ok: 'text-green-400', warning: 'text-amber-400', critical: 'text-red-400' }
+                return (
+                  <span key={sev} className={count > 0 ? colors[sev] : 'text-slate-600'}>
+                    {labels[sev]}: {count}
+                  </span>
+                )
+              })}
+              <span className="ml-auto">
+                {org.modules?.filter(m => m.status === 'coming_soon').length} modules in development
+              </span>
+            </div>
+            <ReportGenerator
+              orgName={org.org_name}
+              orgId={org.org_id}
+              moduleResults={(org.modules || []).map(m => ({
+                moduleId:   m.module_id,
+                moduleName: m.display_name,
+                moduleIcon: m.icon,
+                status:     m.severity === 'ok' ? 'pass' : m.severity,
+                findings:   (m.findings || []).map(f => ({
+                  severity: f.severity,
+                  site_id:  f.site_id || null,
+                  message:  f.detail ? `${f.title}: ${f.detail}` : f.title,
+                }))
+              }))}
+              siteNames={org.site_names || {}}
+            />
           </div>
         )}
       </div>

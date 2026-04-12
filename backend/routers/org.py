@@ -57,6 +57,7 @@ async def get_org_summary(x_session_token: str = Header(None)):
         site_count=len(sites),
         overall_score=overall_score,
         modules=list(module_results),
+        site_names={s["id"]: s["name"] for s in sites},
     )
 
 

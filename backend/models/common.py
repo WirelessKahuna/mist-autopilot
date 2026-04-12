@@ -51,3 +51,4 @@ class OrgSummary(BaseModel):
     site_count: int
     overall_score: int | None = None
     modules: list[ModuleOutput] = []
+    site_names: dict[str, str] = {}  # {site_id: site_name} for report generation
