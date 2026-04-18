@@ -21,7 +21,7 @@ from typing import Any
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient
 from .base import BaseModule
-from ._mist_urls import org_config_url
+from ._mist_urls import org_config_url, templates_url
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,8 @@ def _suggest_variable_name(field: str) -> str:
 
 # ── SSID Family Analysis ────────────────────────────────────────────────────
 
-def _build_ssid_family(name: str, instances: list[dict]) -> list[Finding]:
+def _build_ssid_family(name: str, instances: list[dict],
+                       portal_base: str = "", org_id: str = "") -> list[Finding]:
     findings = []
     if len(instances) < 2:
         return findings
@@ -138,6 +139,10 @@ def _build_ssid_family(name: str, instances: list[dict]) -> list[Finding]:
                     f'should be separate SSIDs with distinct names.'
                 ),
                 raw={"field": field, "values": raw_vals},
+                fix_url=(
+                    templates_url(portal_base, org_id)
+                    if portal_base and org_id else None
+                ),
             ))
 
     for field, label in WARNING_DIFF_FIELDS.items():
@@ -359,7 +364,10 @@ class ConfigDriftModule(BaseModule):
             if ssid_name in templated_ssid_names:
                 continue
             if len(instances) > 1:
-                all_findings.extend(_build_ssid_family(ssid_name, instances))
+                all_findings.extend(_build_ssid_family(
+                    ssid_name, instances,
+                    portal_base=client.portal_base, org_id=org_id,
+                ))
 
         # 3. VLAN Collision Analysis (per site)
         site_results: list[SiteResult] = []

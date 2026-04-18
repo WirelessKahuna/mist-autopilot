@@ -134,6 +134,7 @@ class SUBMonitorModule(BaseModule):
                     f"Contact your Juniper/HPE account team immediately to renew {sku} licenses. "
                     f"Expired licenses may impact device management and Marvis AI functionality."
                 ),
+                fix_url=subscriptions_url(client.portal_base, org_id),
             ))
 
         # Emit findings for licenses expiring within 30 days
@@ -153,6 +154,7 @@ class SUBMonitorModule(BaseModule):
                     f"Contact your Juniper/HPE account team to initiate renewal for {sku}. "
                     f"Allow 5–10 business days for license processing."
                 ),
+                fix_url=subscriptions_url(client.portal_base, org_id),
             ))
 
         # Emit findings for licenses expiring within 31–90 days
