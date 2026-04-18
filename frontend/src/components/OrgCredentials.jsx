@@ -40,12 +40,16 @@ export default function OrgCredentials({ onConnected, onClose }) {
         setSavedOrgs(getSavedOrgs())
       }
       setLastUsedOrg(connectResult.org_id)
+      // Hand off to parent. The parent is responsible for transitioning away
+      // from whatever mode had the modal open (LANDING / DASHBOARD / WELCOME);
+      // we do NOT call onClose() here because that would reset the parent's
+      // mode back to its pre-connect state and overwrite the AUTO_CONNECT
+      // transition that onConnected just kicked off.
       onConnected({
         orgName: connectResult.org_name,
         orgId:   connectResult.org_id,
         siteCount: siteIds.length,
       })
-      onClose()
     } catch (e) {
       setError(e.message)
       setStep(STEPS.INPUT)

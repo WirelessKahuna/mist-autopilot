@@ -11,12 +11,11 @@ import { getSavedOrgs, getLastUsedOrg, setLastUsedOrg } from '../utils/savedOrgs
 
 // Startup modes
 const MODE = {
-  BOOTING:      'booting',       // checking localStorage, haven't decided yet
-  LANDING:      'landing',       // first visit: no saved orgs, no active session
-  AUTO_CONNECT: 'auto_connect',  // silently connecting to last used org
-  WELCOME:      'welcome',       // multiple saved orgs, show picker
-  DASHBOARD:    'dashboard',     // normal dashboard view
-  CREDENTIALS:  'credentials',   // credentials modal open
+  BOOTING:     'booting',       // checking localStorage, haven't decided yet
+  LANDING:     'landing',       // first visit: no saved orgs, no active session
+  WELCOME:     'welcome',       // multiple saved orgs, show picker
+  DASHBOARD:   'dashboard',     // normal dashboard view (also used while loading)
+  CREDENTIALS: 'credentials',   // credentials modal open
 }
 
 function ErrorBanner({ message, onRetry }) {
@@ -58,23 +57,6 @@ function LoadingGrid() {
   )
 }
 
-function AutoConnectScreen({ orgName }) {
-  return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-white">Mist Autopilot</h1>
-        <p className="text-sm text-slate-500">Self-Driving Network Review</p>
-        <div className="flex items-center justify-center gap-2 mt-6">
-          <span className="animate-spin text-mist-400 text-lg">↻</span>
-          <span className="text-sm text-slate-400">
-            Connecting to <span className="text-slate-200 font-medium">{orgName}</span>…
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function formatTime(date) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
@@ -94,12 +76,12 @@ export default function Dashboard() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setMode(MODE.DASHBOARD)
     try {
       const data = await getOrgSummary()
       setOrg(data)
       setLastUpdated(formatTime(new Date()))
       setScanningOrg(null)
-      setMode(MODE.DASHBOARD)
       try {
         const stats = await getStats()
         setApiStats(stats)
@@ -107,20 +89,23 @@ export default function Dashboard() {
     } catch (e) {
       setError(e.message)
       setScanningOrg(null)
-      setMode(MODE.DASHBOARD)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // Auto-connect a saved org (skip site picker, use all sites)
+  // Auto-connect a saved org (skip site picker, use all sites).
+  // Flips to DASHBOARD mode immediately so the skeleton grid + scanning banner
+  // render while the cloud-probe and site-selection happen, then load() takes
+  // over for the actual data fetch.
   const autoConnect = useCallback(async (savedOrg) => {
+    setOrg(null)
     setScanningOrg(savedOrg.name)
-    setMode(MODE.AUTO_CONNECT)
+    setLoading(true)
+    setMode(MODE.DASHBOARD)
     try {
       const result = await connectOrg(savedOrg.token)
       setSessionToken(result.session_id)
-      // Use all active sites (no picker for auto-connect)
       await selectSites(result.active_sites.map(s => s.id))
       setLastUsedOrg(result.org_id)
       await load()
@@ -128,6 +113,7 @@ export default function Dashboard() {
       // Auto-connect failed: fall back to the landing page rather than silently
       // loading from env-var credentials. The user can reconnect from there.
       setScanningOrg(null)
+      setLoading(false)
       setMode(MODE.LANDING)
     }
   }, [load])
@@ -138,19 +124,15 @@ export default function Dashboard() {
     setSavedOrgs(orgs)
 
     if (orgs.length === 0) {
-      // No saved orgs: show the landing page instead of auto-loading env
-      // credentials, so the hosted site never opens straight into anyone's org.
       setMode(MODE.LANDING)
       return
     }
 
     if (orgs.length === 1) {
-      // One saved org: auto-connect silently
       autoConnect(orgs[0])
       return
     }
 
-    // Multiple saved orgs: check for last used
     const lastUsed = getLastUsedOrg()
     if (lastUsed) {
       autoConnect(lastUsed)
@@ -166,7 +148,11 @@ export default function Dashboard() {
     setLastUpdated(null)
     setApiStats(null)
     setScanningOrg(info.orgName)
-    setMode(MODE.DASHBOARD)
+    // Keep savedOrgs in sync in case Remember was checked in the modal.
+    setSavedOrgs(getSavedOrgs())
+    // Go straight to DASHBOARD mode. load() shows the skeleton grid with the
+    // scanning banner while the actual scan runs, which is the same UX as the
+    // saved-org reload path.
     load()
   }, [load])
 
@@ -175,7 +161,6 @@ export default function Dashboard() {
     clearSessionToken()
     setOrg(null)
     setScanningOrg(null)
-    // After disconnecting, route based on what's still saved locally.
     const orgs = getSavedOrgs()
     setSavedOrgs(orgs)
     if (orgs.length === 0) {
@@ -208,7 +193,8 @@ export default function Dashboard() {
   // Booting, brief flash, shouldn't be seen
   if (mode === MODE.BOOTING) return null
 
-  // Landing page: first visit with no saved orgs and no active session
+  // Landing page: first visit with no saved orgs and no active session.
+  // Also handles the credentials-modal-over-landing case.
   if (mode === MODE.LANDING || (mode === MODE.CREDENTIALS && !org && savedOrgs.length === 0)) {
     return (
       <>
@@ -221,11 +207,6 @@ export default function Dashboard() {
         )}
       </>
     )
-  }
-
-  // Auto-connecting
-  if (mode === MODE.AUTO_CONNECT) {
-    return <AutoConnectScreen orgName={scanningOrg} />
   }
 
   // Welcome screen (multiple saved orgs, no last used)

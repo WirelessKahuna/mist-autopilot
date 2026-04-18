@@ -14,17 +14,26 @@ settings = get_settings()
 
 
 def _get_client_and_org(session_token: str | None):
-    """Return (MistClient, org_id, selected_site_ids, creds) for either session or env var credentials.
-    creds is the SessionCredentials object when a session is active, else None."""
-    if session_token:
-        creds = session_store.get(session_token)
-        if creds:
-            # Pass the session's stored api_base so the client hits the correct
-            # Mist cloud (global / EU / GC1 / AC2 / etc.). portal_base is derived
-            # inside MistClient from the api_base.
-            client = get_mist_client(creds.api_token, api_base=creds.api_base)
-            return client, creds.org_id, creds.selected_site_ids, creds
-    return mist, settings.mist_org_id, [], None
+    """Return (MistClient, org_id, selected_site_ids, creds) for an active session.
+    Raises HTTPException 401 if no valid session is present; the env-var
+    fallback has been removed so the hosted deployment never silently serves
+    data from baked-in credentials."""
+    if not session_token:
+        raise HTTPException(
+            status_code=401,
+            detail="No active session. Connect an org token to continue.",
+        )
+    creds = session_store.get(session_token)
+    if not creds:
+        raise HTTPException(
+            status_code=401,
+            detail="Session not found or expired. Reconnect your org token.",
+        )
+    # Pass the session's stored api_base so the client hits the correct
+    # Mist cloud (global / EU / GC1 / AC2 / etc.). portal_base is derived
+    # inside MistClient from the api_base.
+    client = get_mist_client(creds.api_token, api_base=creds.api_base)
+    return client, creds.org_id, creds.selected_site_ids, creds
 
 
 def _cloud_id_for_api_base(api_base: str) -> str:
@@ -40,8 +49,7 @@ def _cloud_id_for_api_base(api_base: str) -> str:
 async def get_org_summary(x_session_token: str = Header(None)):
     """
     Fetch org info and run all modules in parallel.
-    Uses session credentials if X-Session-Token header present,
-    otherwise falls back to env var defaults.
+    Requires an active session (X-Session-Token header); no env-var fallback.
     """
     client, org_id, selected_site_ids, creds = _get_client_and_org(x_session_token)
     api_counter.reset_last_refresh(org_id)
@@ -66,10 +74,10 @@ async def get_org_summary(x_session_token: str = Header(None)):
     scored = [m.score for m in module_results if m.score is not None]
     overall_score = round(sum(scored) / len(scored)) if scored else None
 
-    # Capability + cloud info for the UI. When there's no session (env-default
-    # fallback path), we don't know the role, so can_write defaults to False.
-    can_write   = creds.can_write if creds else False
-    portal_base = creds.portal_base if creds else client.portal_base
+    # Capability + cloud info for the UI. creds is always present here because
+    # _get_client_and_org raises 401 when it isn't.
+    can_write   = creds.can_write
+    portal_base = creds.portal_base
     cloud_id    = _cloud_id_for_api_base(client.base_url)
 
     return OrgSummary(

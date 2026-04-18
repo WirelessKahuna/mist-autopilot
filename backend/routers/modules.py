@@ -26,27 +26,26 @@ async def list_modules():
 @router.get("/{module_id}", response_model=ModuleOutput)
 async def run_module(module_id: str, x_session_token: str = Header(None)):
     """Run a single module and return its output. Used for tile-level refresh.
-    Respects the active session's org + cloud when a token is present; falls
-    back to env defaults otherwise."""
+    Requires an active session (X-Session-Token header); no env-var fallback."""
     module = _module_map.get(module_id)
     if not module:
         raise HTTPException(status_code=404, detail=f"Module '{module_id}' not found.")
 
-    # Resolve client + org from session if present, else env defaults
-    if x_session_token:
-        creds = session_store.get(x_session_token)
-        if creds:
-            client = get_mist_client(creds.api_token, api_base=creds.api_base)
-            org_id = creds.org_id
-            selected_site_ids = creds.selected_site_ids
-        else:
-            client = mist
-            org_id = settings.mist_org_id
-            selected_site_ids = []
-    else:
-        client = mist
-        org_id = settings.mist_org_id
-        selected_site_ids = []
+    if not x_session_token:
+        raise HTTPException(
+            status_code=401,
+            detail="No active session. Connect an org token to continue.",
+        )
+    creds = session_store.get(x_session_token)
+    if not creds:
+        raise HTTPException(
+            status_code=401,
+            detail="Session not found or expired. Reconnect your org token.",
+        )
+
+    client = get_mist_client(creds.api_token, api_base=creds.api_base)
+    org_id = creds.org_id
+    selected_site_ids = creds.selected_site_ids
 
     try:
         all_sites = await client.get_sites(org_id)
