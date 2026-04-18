@@ -8,7 +8,7 @@ Mist Autopilot reviews an entire Juniper Mist organization in a single pass — 
 
 It runs in any modern browser. No installation. No agent. No access to your wired or wireless infrastructure beyond a read-only API token you control.
 
-For the hackathon customer-impact narrative, see **[CUSTOMER_IMPACT.md](./CUSTOMER_IMPACT.md)**.
+For the hackathon customer-impact narrative, see CUSTOMER_IMPACT.md. For our honest self-assessment against the rubric, see SELF_SCORE.md.
 
 ---
 
