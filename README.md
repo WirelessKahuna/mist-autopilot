@@ -22,14 +22,14 @@ Every finding is explained. Every finding includes a recommended remediation. No
 
 ### What makes it different
 
-- Any org, any size. No hard-coded org IDs. Bring a token, pick sites, scan.
-- Any browser. The live deployment at `tools.wirelesskahuna.com` works from anywhere you can open a web page — Chrome, Safari, Edge, Firefox, on Windows, Mac, Linux, iOS, or Android.
-- Any Mist cloud.** Autopilot auto-detects which of Mist's twelve geographic clouds (Global 01–05, EMEA 01–04, APAC 01–03) the token authenticates against and routes all API calls and deep-links accordingly. No configuration required.
-- Read-only by design. An Observer token is all the app needs to do its job. The UI visualizes the token's access role on the org pill — mist-blue for Observer, red for Admin/Write — so operators see at a glance what the token can do.
-- Fix in Mist deep-links. Every critical finding includes a one-click link that routes the operator directly to the exact Mist portal page that resolves it — not the org landing page, not a search, the specific Subscriptions, NAC Policies, WLAN Templates, or AP Detail view.
-- Shareable PDF report. A client-side PDF export bundles the full run into a professional report — executive summary, module results table, finding detail, and per-site breakdown — ready to hand to a director, customer, or auditor.
-- Zero data persistence. Tokens are held in memory for the session. No database. No disk writes. No telemetry.
-- Self-driving framing. Every module is categorized against a three-level autonomy scale (L1 detect → L2 classify → L3 act) so operators can see exactly how much of the loop is being closed today and what's coming next.
+- **Any org, any size.** No hard-coded org IDs. Bring a token, pick sites, scan.
+- **Any browser.** The live deployment at `tools.wirelesskahuna.com` works from anywhere you can open a web page — Chrome, Safari, Edge, Firefox, on Windows, Mac, Linux, iOS, or Android.
+- **Any Mist cloud.** Autopilot auto-detects which of Mist's twelve geographic clouds (Global 01–05, EMEA 01–04, APAC 01–03) the token authenticates against and routes all API calls and deep-links accordingly. No configuration required.
+- **Read-only by design.** An Observer token is all the app needs to do its job. The UI visualizes the token's access role on the org pill — mist-blue for Observer, red for Admin/Write — so operators see at a glance what the token can do.
+- **Fix in Mist deep-links.** Every critical finding includes a one-click link that routes the operator directly to the exact Mist portal page that resolves it — not the org landing page, not a search, the specific Subscriptions, NAC Policies, WLAN Templates, or AP Detail view.
+- **Shareable PDF report.** A client-side PDF export bundles the full run into a professional report — executive summary, module results table, finding detail, and per-site breakdown — ready to hand to a director, customer, or auditor.
+- **Zero data persistence.** Tokens are held in memory for the session. No database. No disk writes. No telemetry.
+- **Self-driving framing.** Every module is categorized against a three-level autonomy scale (L1 detect → L2 classify → L3 act) so operators can see exactly how much of the loop is being closed today and what's coming next.
 
 ---
 
@@ -39,12 +39,12 @@ The live production deployment is at **[tools.wirelesskahuna.com](https://tools.
 
 To use it, you need exactly two things:
 
-1. A web browser. Any modern browser on any OS.
-2. A Mist Org API Token.** Generate one at `manage.mist.com` under Organization → Settings → API Token. Observer role is sufficient.
+1. **A web browser.** Any modern browser on any OS.
+2. **A Mist Org API Token.** Generate one at `manage.mist.com` under Organization → Settings → API Token. Observer role is sufficient.
 
-Open the site, paste your token, pick the sites you want scanned, click Scan. That's the entire flow.
+Open the site, paste your token, pick the sites you want scanned, click Scan. **That's the entire flow.**
 
-> What the live site does not require. Everything in the *Self-Hosting* section of this README — Docker, Python, Node, the HPE OneDrive project path, local environment files — is only needed if you want to build, modify, or run your own instance. None of it is required to use Mist Autopilot against your own org through the live site.
+> **What the live site does not require.** Everything in the *Self-Hosting* section of this README — Docker, Python, Node, the HPE OneDrive project path, local environment files — is only needed if you want to build, modify, or run your own instance. None of it is required to use Mist Autopilot against your own org through the live site.
 
 ---
 
@@ -56,39 +56,39 @@ Modules are grouped below by domain.
 
 ### Security & Access
 
-🔐 SecureScope — Wireless security audit.** Inspects every WLAN against wireless security best practices. Classifies open SSIDs by risk (no VLAN, shared VLAN with a protected SSID, click-through captive portal, authenticated captive portal). Flags PMF-disabled WPA2/WPA3 SSIDs, PSK reuse across differently-named SSIDs, 802.1X SSIDs with no RADIUS servers configured (suppressing Mist Access Assurance, RADSEC, and Passpoint variants), missing rogue AP detection, and SSIDs left in WPA3 or OWE transition mode.
+**🔐 SecureScope — Wireless security audit.** Inspects every WLAN against wireless security best practices. Classifies open SSIDs by risk (no VLAN, shared VLAN with a protected SSID, click-through captive portal, authenticated captive portal). Flags PMF-disabled WPA2/WPA3 SSIDs, PSK reuse across differently-named SSIDs, 802.1X SSIDs with no RADIUS servers configured (suppressing Mist Access Assurance, RADSEC, and Passpoint variants), missing rogue AP detection, and SSIDs left in WPA3 or OWE transition mode.
 
-🔑 AuthGuard — Access Assurance & NAC health. Audits Mist NAC rule configuration, SCEP/PKI status, CA certificate presence and expiry, and the set of 802.1X-backed WLANs consuming those policies. Parses each uploaded CA certificate to flag expired, expiring-in-30-days, and expiring-in-90-days conditions. Detects unresolved tag references in NAC rules, missing certificate-based authentication rules, and disabled or unnamed rules.
+**🔑 AuthGuard — Access Assurance & NAC health.** Audits Mist NAC rule configuration, SCEP/PKI status, CA certificate presence and expiry, and the set of 802.1X-backed WLANs consuming those policies. Parses each uploaded CA certificate to flag expired, expiring-in-30-days, and expiring-in-90-days conditions. Detects unresolved tag references in NAC rules, missing certificate-based authentication rules, and disabled or unnamed rules.
 
 ### Wireless Health
 
-📡 RoamGuard — Roaming health.** Uses SLE roaming classifiers combined with fast roam event counts to identify genuine sticky-client problems as opposed to coverage gaps masquerading as roaming issues. Flags 802.1X SSIDs without 802.11r (Fast BSS Transition) enabled and recommends High Density data rates on sites with sub-80 roaming SLE.
+**📡 RoamGuard — Roaming health.** Uses SLE roaming classifiers combined with fast roam event counts to identify genuine sticky-client problems as opposed to coverage gaps masquerading as roaming issues. Flags 802.1X SSIDs without 802.11r (Fast BSS Transition) enabled and recommends High Density data rates on sites with sub-80 roaming SLE.
 
-📊 SLE Sentinel — Multi-domain SLE monitoring.** Monitors wireless, wired, and WAN SLE metrics across every site against both absolute thresholds and per-site 7-day baselines. Classifies each anomaly by its top contributing classifiers (the L2 failure domain) and emits a specific recommendation tied to the metric and its dominant classifier. Includes a webhook notification stub, ready to enable for L3 outbound signaling.
+**📊 SLE Sentinel — Multi-domain SLE monitoring.** Monitors wireless, wired, and WAN SLE metrics across every site against both absolute thresholds and per-site 7-day baselines. Classifies each anomaly by its top contributing classifiers (the L2 failure domain) and emits a specific recommendation tied to the metric and its dominant classifier. Includes a webhook notification stub, ready to enable for L3 outbound signaling.
 
-📶 RF Fingerprint Analyzer — RF configuration audit.** Detects sites with no RF template assigned, band-utilization imbalance (more than 30% of clients on 2.4 GHz when 5 or 6 GHz is present), DFS instability (three or more radar events in seven days), RF templates that exclude all DFS channels, channel-width mismatches across APs on the same band at the same site, and TX power outliers (APs deviating 6 dB or more from site average).
+**📶 RF Fingerprint Analyzer — RF configuration audit.** Detects sites with no RF template assigned, band-utilization imbalance (more than 30% of clients on 2.4 GHz when 5 or 6 GHz is present), DFS instability (three or more radar events in seven days), RF templates that exclude all DFS channels, channel-width mismatches across APs on the same band at the same site, and TX power outliers (APs deviating 6 dB or more from site average).
 
-📈 Client Experience Trends — 30-day SLE trend analysis.** Compares each site's last-7-day SLE performance against a prior 23-day baseline across seven wireless metrics. Classifies each site as improving, stable, or degrading based on a per-metric 10% relative-change threshold. Automatically filters out weekend samples for weekday-dominant sites (less than 20% weekend user-minutes) so office sites aren't judged on idle weekends.
+**📈 Client Experience Trends — 30-day SLE trend analysis.** Compares each site's last-7-day SLE performance against a prior 23-day baseline across seven wireless metrics. Classifies each site as improving, stable, or degrading based on a per-metric 10% relative-change threshold. Automatically filters out weekend samples for weekday-dominant sites (less than 20% weekend user-minutes) so office sites aren't judged on idle weekends.
 
 ### Config Governance
 
-🔍 Config Drift Detective — SSID drift and VLAN collision audit.** Uses the `/wlans/derived` endpoint to resolve fully-scoped WLAN configuration per site, then diffs same-named SSIDs across sites. Classifies differences as critical (security-type mismatches) or warning (VLAN or rate-set mismatches) and proposes Mist WLAN Variables for fields expected to differ. Flags site-local WLANs that could be migrated into templates. Per-site VLAN collision detection identifies multiple SSIDs sharing a VLAN, with security-aware severity (open + authenticated on the same VLAN is a critical finding).
+**🔍 Config Drift Detective — SSID drift and VLAN collision audit.** Uses the `/wlans/derived` endpoint to resolve fully-scoped WLAN configuration per site, then diffs same-named SSIDs across sites. Classifies differences as critical (security-type mismatches) or warning (VLAN or rate-set mismatches) and proposes Mist WLAN Variables for fields expected to differ. Flags site-local WLANs that could be migrated into templates. Per-site VLAN collision detection identifies multiple SSIDs sharing a VLAN, with security-aware severity (open + authenticated on the same VLAN is a critical finding).
 
-🔄 AP Lifecycle Monitor — Firmware & fleet health.** Mirrors Mist's Version Compliance logic at per-site, per-model granularity. Detects sites with Auto Update disabled, same-model APs running mixed firmware (an interrupted upgrade signature — cross-model differences are expected and not flagged), disconnected APs, and End-of-Sale hardware. An L3 action stub is in place to enable the Marvis Self-Driving Action for non-compliant APs on a per-site basis when operators are ready to close that loop automatically.
+**🔄 AP Lifecycle Monitor — Firmware & fleet health.** Mirrors Mist's Version Compliance logic at per-site, per-model granularity. Detects sites with Auto Update disabled, same-model APs running mixed firmware (an interrupted upgrade signature — cross-model differences are expected and not flagged), disconnected APs, and End-of-Sale hardware. An L3 action stub is in place to enable the Marvis Self-Driving Action for non-compliant APs on a per-site basis when operators are ready to close that loop automatically.
 
 ### WAN & Gateway
 
-🌐 WAN & Uplink Sentinel — Gateway, tunnel, and WAN SLE monitoring.** Inspects gateway device stats, org-level WAN tunnel status, gateway device events, and WAN SLE metrics (gateway-health, wan-availability, application-health). Distinguishes between tunnel-down-with-failover-active (warning) and tunnel-down-with-no-failover-path (critical). Detects tunnel flapping, recurring failover events, and degraded WAN SLEs. Gracefully returns a clean summary on wireless-only orgs with no WAN Assurance subscription.
+**🌐 WAN & Uplink Sentinel — Gateway, tunnel, and WAN SLE monitoring.** Inspects gateway device stats, org-level WAN tunnel status, gateway device events, and WAN SLE metrics (gateway-health, wan-availability, application-health). Distinguishes between tunnel-down-with-failover-active (warning) and tunnel-down-with-no-failover-path (critical). Detects tunnel flapping, recurring failover events, and degraded WAN SLEs. Gracefully returns a clean summary on wireless-only orgs with no WAN Assurance subscription.
 
 ### Licensing & Readiness
 
-📋 SUBMonitor — Subscription & license audit.** Audits Mist license entitlements against deployed AP inventory. Flags expired subscriptions, subscriptions expiring within 30 days (critical) and 31–90 days (warning), SUB-MAN coverage gaps where deployed APs exceed entitlements, and APs running on eval subscriptions that cannot be renewed.
+**📋 SUBMonitor — Subscription & license audit.** Audits Mist license entitlements against deployed AP inventory. Flags expired subscriptions, subscriptions expiring within 30 days (critical) and 31–90 days (warning), SUB-MAN coverage gaps where deployed APs exceed entitlements, and APs running on eval subscriptions that cannot be renewed.
 
-🤖 MinisMonitor — Marvis Minis readiness.** Audits the prerequisites for Marvis Minis synthetic testing. Checks SUB-VNA entitlement (required), org-level Minis enablement, custom application probe configuration, WAN speedtest setting, per-site overrides, and AP firmware minimum version (0.14.29313). Flags sites or APs that would be excluded from Minis execution.
+**🤖 MinisMonitor — Marvis Minis readiness.** Audits the prerequisites for Marvis Minis synthetic testing. Checks SUB-VNA entitlement (required), org-level Minis enablement, custom application probe configuration, WAN speedtest setting, per-site overrides, and AP firmware minimum version (0.14.29313). Flags sites or APs that would be excluded from Minis execution.
 
 ### AI-Driven Ops
 
-🔬 MarvisIQ — Marvis Actions analyzer.** Fetches active Marvis suggestions from the Mist platform's AI actions engine. Groups open actions by category (AP, switch, gateway, wireless, wired), identifies recurrent issues with elevated batch counts, detects self-drivable actions that have not been enabled for auto-remediation, and flags sites generating disproportionate action volume (over 60% concentration at a single site signals systemic infrastructure problems).
+**🔬 MarvisIQ — Marvis Actions analyzer.** Fetches active Marvis suggestions from the Mist platform's AI actions engine. Groups open actions by category (AP, switch, gateway, wireless, wired), identifies recurrent issues with elevated batch counts, detects self-drivable actions that have not been enabled for auto-remediation, and flags sites generating disproportionate action volume (over 60% concentration at a single site signals systemic infrastructure problems).
 
 ---
 
@@ -98,9 +98,9 @@ Mist Autopilot uses a three-level autonomy scale to describe how much of the ope
 
 | Level | Description | Example |
 |-------|-------------|---------|
-| L1 — Detect** | The module queries live Mist APIs and identifies a problem. | "Site X has 3 radar events in the last 7 days." |
-| L2 — Classify** | The module reasons about the detected problem to narrow the failure domain. | "The degraded SLE is driven by the *weak-signal* classifier at 47% impact — this is an RF coverage problem, not an authentication problem." |
-| L3 — Act** | The module takes or prepares action to remediate the problem. | "Enable the Marvis Self-Driving Action for non-compliant APs at this site." |
+| **L1 — Detect** | The module queries live Mist APIs and identifies a problem. | "Site X has 3 radar events in the last 7 days." |
+| **L2 — Classify** | The module reasons about the detected problem to narrow the failure domain. | "The degraded SLE is driven by the *weak-signal* classifier at 47% impact — this is an RF coverage problem, not an authentication problem." |
+| **L3 — Act** | The module takes or prepares action to remediate the problem. | "Enable the Marvis Self-Driving Action for non-compliant APs at this site." |
 
 Every module in the current build operates at L1 across its entire check surface. Several modules extend to L2 by classifying failure domain, root cause, or site-level context. Two modules (SLE Sentinel and AP Lifecycle Monitor) include ready-to-activate L3 action stubs — webhook notification and Marvis auto-remediation respectively — that can be enabled when operators are prepared to close the loop automatically.
 
@@ -125,9 +125,9 @@ Between L2 and L3 sits a practical operator need that pure detection and pure au
 
 Field engineers and MSPs working across many customer orgs can store multiple tokens locally via the *Remember this org* option. On return visits:
 
-- One saved org:** Autopilot auto-connects silently on page load.
-- Multiple saved orgs:** a Welcome screen lists every saved org as a one-click connect button; the most recently used org auto-connects by default.
-- New org:** the Welcome screen includes a *Connect a new org* action that opens the credentials modal.
+- **One saved org:** Autopilot auto-connects silently on page load.
+- **Multiple saved orgs:** a Welcome screen lists every saved org as a one-click connect button; the most recently used org auto-connects by default.
+- **New org:** the Welcome screen includes a *Connect a new org* action that opens the credentials modal.
 
 Saved orgs are scoped to the browser's origin and removable at any time via the *Forget* control. No org list is ever synced to the server.
 
@@ -144,8 +144,8 @@ The token is never written to disk on the server, never logged, and never transm
 
 Mist enforces an hourly API request quota per token. Mist Autopilot shows two running counters in the UI so operators can pace their scans:
 
-- Current (per refresh). API calls issued during the most recent scan. Resets at the start of every scan.
-- Hourly. Total API calls issued against the active org within the current UTC hour. Resets automatically at the top of the hour, in line with Mist's own hourly rate-limit window.
+- **Current (per refresh).** API calls issued during the most recent scan. Resets at the start of every scan.
+- **Hourly.** Total API calls issued against the active org within the current UTC hour. Resets automatically at the top of the hour, in line with Mist's own hourly rate-limit window.
 
 This is also why the site picker shows AP counts per site and defaults to showing only sites with assigned APs. Before scanning a very large org, review the selected sites and deselect any you don't need — an unchecked scan across a many-hundred-site org can consume a substantial fraction of the hourly quota in a single pass.
 
@@ -287,21 +287,21 @@ Session credentials are passed via the `X-Session-Token` request header when pre
 
 ## Security posture
 
-Token scope. Observer role is sufficient for every current module — the app issues no writes today. Any Mist role is accepted (admin, write, helpdesk, installer, read, observer); the `/api/credentials/connect` response includes a `can_write` flag computed from the token's org role (true for `admin`/`write`, false for all other roles) and the frontend renders the org pill with a red "Admin mode" label when `can_write` is true and a mist-blue "Observer mode" label otherwise, so operators can see at a glance what the token they pasted is capable of. Write-capable actions are planned for future L3 modules and will be gated on `can_write`.
+**Token scope.** Observer role is sufficient for every current module — the app issues no writes today. Any Mist role is accepted (admin, write, helpdesk, installer, read, observer); the `/api/credentials/connect` response includes a `can_write` flag computed from the token's org role (true for `admin`/`write`, false for all other roles) and the frontend renders the org pill with a red "Admin mode" label when `can_write` is true and a mist-blue "Observer mode" label otherwise, so operators can see at a glance what the token they pasted is capable of. Write-capable actions are planned for future L3 modules and will be gated on `can_write`.
 
-Token storage — server side. Session tokens live in a Python `SessionStore` dict in the FastAPI process. No disk writes, no database, no log output of token material. Sessions expire after 8 hours of inactivity. Container restarts (Railway deploys, crashes, idle cycling) wipe the entire store.
+**Token storage — server side.** Session tokens live in a Python `SessionStore` dict in the FastAPI process. No disk writes, no database, no log output of token material. Sessions expire after 8 hours of inactivity. Container restarts (Railway deploys, crashes, idle cycling) wipe the entire store.
 
-Token storage — browser side, default. The `session_id` (not the Mist token) is held in the browser's `sessionStorage`, cleared automatically when the tab closes.
+**Token storage — browser side, default.** The `session_id` (not the Mist token) is held in the browser's `sessionStorage`, cleared automatically when the tab closes.
 
-Token storage — browser side, opt-in. If the user checks *Remember this org across browser sessions* on the connect dialog, the Mist token is additionally written to the browser's `localStorage` under the key `mist_saved_orgs`. This persists across browser restarts until the user clicks *Forget* on that saved org or clears browser storage. The backend never writes the token anywhere — persistence is entirely a browser-local opt-in.
+**Token storage — browser side, opt-in.** If the user checks *Remember this org across browser sessions* on the connect dialog, the Mist token is additionally written to the browser's `localStorage` under the key `mist_saved_orgs`. This persists across browser restarts until the user clicks *Forget* on that saved org or clears browser storage. The backend never writes the token anywhere — persistence is entirely a browser-local opt-in.
 
-Transport. Every Mist API call is issued server-side from the FastAPI backend. The token never reaches third-party services. The browser only ever sees the opaque `session_id`.
+**Transport.** Every Mist API call is issued server-side from the FastAPI backend. The token never reaches third-party services. The browser only ever sees the opaque `session_id`.
 
-Data at rest. None. The app holds responses in memory only. There is no database, no persistent cache, no file-based state.
+**Data at rest.** None. The app holds responses in memory only. There is no database, no persistent cache, no file-based state.
 
-Caching. API responses are cached in-process in an `TTLCache` with a 5-minute default TTL, keyed by URL + params. This cache is per-process and evaporates on restart.
+**Caching.** API responses are cached in-process in an `TTLCache` with a 5-minute default TTL, keyed by URL + params. This cache is per-process and evaporates on restart.
 
-Rate limit awareness. The built-in API call counter exposes both per-refresh and hourly counts. Modules use in-parallel fetch patterns with a 0.25-second inter-request throttle, honor `Retry-After` on 429 responses, and cache responses aggressively to stay well under the Mist hourly budget on typical scans.
+**Rate limit awareness.** The built-in API call counter exposes both per-refresh and hourly counts. Modules use in-parallel fetch patterns with a 0.25-second inter-request throttle, honor `Retry-After` on 429 responses, and cache responses aggressively to stay well under the Mist hourly budget on typical scans.
 
 ---
 
