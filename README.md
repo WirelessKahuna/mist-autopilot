@@ -310,11 +310,13 @@ Rate limit awareness. The built-in API call counter exposes both per-refresh and
 Hackathon deliverable — HPE / Juniper Mist Field PLM AI Ops Hackathon.
 Deadline: April 20, 2026.
 
-Team:
-- **Mike Wade** — Field PLM, AI-Ops Specialist, HPE. CWNE #421. [@WirelessKahuna](https://www.linkedin.com/in/wirelesskahuna/)
-- **Garth Humphrey** — Field PLM, AI-Ops Specialist, HPE. [@TheWifIJedi] (https://www.linkedin.com/in/garthhumphrey/) [slugboy1122](https://github.com/slugboy1122)
+Team Signal & Noise:
+- **Mike Wade** — Field PLM, AI-Ops Specialist, HPE. [@WirelessKahuna](https://www.linkedin.com/in/wirelesskahuna/)
+  [WirelessKahuna](https://github.com/WirelessKahuna)
+- **Garth Humphrey** — Field PLM, AI-Ops Specialist, HPE. [@TheWifIJedi](https://www.linkedin.com/in/garthhumphrey/)
+  [slugboy1122](https://github.com/slugboy1122)
 
-Live deployment: (https://tools.wirelesskahuna.com) (Railway-hosted, custom domain via GoDaddy CNAME) (https://github.com/WirelessKahuna/mist-autopilot.)
+Live deployment: https://tools.wirelesskahuna.com (Railway-hosted, custom domain via GoDaddy CNAME). Repository: https://github.com/WirelessKahuna/mist-autopilot
 
 ---
 
