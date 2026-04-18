@@ -28,6 +28,7 @@ from collections import defaultdict, Counter
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient
 from .base import BaseModule
+from ._mist_urls import ap_detail_url, org_config_url
 
 logger = logging.getLogger(__name__)
 
