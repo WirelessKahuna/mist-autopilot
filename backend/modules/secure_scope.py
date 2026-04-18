@@ -27,7 +27,7 @@ from collections import defaultdict
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient
 from .base import BaseModule
-from ._mist_urls import org_config_url
+from ._mist_urls import org_config_url, templates_url
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,7 @@ class SecureScopeModule(BaseModule):
                     "credential management without passphrase sharing."
                 ),
                 fix_url=(
-                    org_config_url(client.portal_base, org_id)
+                    templates_url(client.portal_base, org_id)
                     if reuse_severity == Severity.critical else None
                 ),
             )

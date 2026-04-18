@@ -25,6 +25,7 @@ from datetime import datetime, timezone, timedelta
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient, MistAPIError
 from .base import BaseModule
+from ._mist_urls import subscriptions_url
 
 logger = logging.getLogger(__name__)
 

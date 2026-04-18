@@ -50,3 +50,12 @@ def subscriptions_url(portal_base: str, org_id: str) -> str:
 
 def nac_policies_url(portal_base: str, org_id: str) -> str:
     return f"{portal_base}/admin/?org_id={org_id}#!nacPolicy"
+
+
+def templates_url(portal_base: str, org_id: str) -> str:
+    """
+    WLAN Templates landing page. Best destination for findings that relate
+    to SSID/PSK configuration defined at the template level (vs per-site
+    overrides), since that's where PSKs and shared SSID settings live.
+    """
+    return f"{portal_base}/admin/?org_id={org_id}#!templates"
