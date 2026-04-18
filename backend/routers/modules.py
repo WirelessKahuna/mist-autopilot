@@ -1,8 +1,9 @@
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 
 from config import get_settings
-from mist_client import mist, MistAPIError
+from mist_client import mist, MistAPIError, get_mist_client
+from session_store import session_store
 from models import ModuleOutput
 from modules import ALL_MODULES
 
@@ -23,16 +24,39 @@ async def list_modules():
 
 
 @router.get("/{module_id}", response_model=ModuleOutput)
-async def run_module(module_id: str):
-    """Run a single module and return its output. Used for tile-level refresh."""
+async def run_module(module_id: str, x_session_token: str = Header(None)):
+    """Run a single module and return its output. Used for tile-level refresh.
+    Respects the active session's org + cloud when a token is present; falls
+    back to env defaults otherwise."""
     module = _module_map.get(module_id)
     if not module:
         raise HTTPException(status_code=404, detail=f"Module '{module_id}' not found.")
 
-    org_id = settings.mist_org_id
+    # Resolve client + org from session if present, else env defaults
+    if x_session_token:
+        creds = session_store.get(x_session_token)
+        if creds:
+            client = get_mist_client(creds.api_token, api_base=creds.api_base)
+            org_id = creds.org_id
+            selected_site_ids = creds.selected_site_ids
+        else:
+            client = mist
+            org_id = settings.mist_org_id
+            selected_site_ids = []
+    else:
+        client = mist
+        org_id = settings.mist_org_id
+        selected_site_ids = []
+
     try:
-        sites = await mist.get_sites(org_id)
+        all_sites = await client.get_sites(org_id)
     except MistAPIError as e:
         raise HTTPException(status_code=e.status_code or 502, detail=e.message)
 
-    return await module.run(org_id, sites, mist)
+    # Honor site selection if one exists for this session
+    if selected_site_ids:
+        sites = [s for s in all_sites if s["id"] in selected_site_ids]
+    else:
+        sites = all_sites
+
+    return await module.run(org_id, sites, client)

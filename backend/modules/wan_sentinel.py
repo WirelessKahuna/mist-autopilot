@@ -40,6 +40,7 @@ from collections import defaultdict
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient, MistAPIError
 from .base import BaseModule
+from ._mist_urls import org_config_url
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +204,7 @@ class WANSentinelModule(BaseModule):
                                 "peer reachability, and upstream ISP status. Consider "
                                 "configuring a secondary WAN path for resilience."
                             ),
+                            fix_url=org_config_url(client.portal_base, org_id, sid),
                         ))
             else:
                 # No tunnel stats — check gateway device status directly
@@ -226,6 +228,7 @@ class WANSentinelModule(BaseModule):
                                 "and cloud reachability. Review device events in the "
                                 "Mist portal for the disconnect reason."
                             ),
+                            fix_url=org_config_url(client.portal_base, org_id, sid),
                         ))
 
             # ── Check 2: Tunnel flapping ───────────────────────────────────

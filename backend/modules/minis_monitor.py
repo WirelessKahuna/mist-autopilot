@@ -31,6 +31,7 @@ import logging
 from models import ModuleOutput, Finding, Severity
 from mist_client import MistClient, MistAPIError
 from .base import BaseModule
+from ._mist_urls import subscriptions_url, org_config_url
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,7 @@ class MinisMonitorModule(BaseModule):
                     "Contact your Juniper/HPE account team to add Marvis for Wireless "
                     "to your subscription."
                 ),
+                fix_url=subscriptions_url(client.portal_base, org_id),
             ))
 
         # ── 3. Check org-level Minis enabled ────────────────────────────────
@@ -123,6 +125,7 @@ class MinisMonitorModule(BaseModule):
                     "Or via API: PUT /api/v1/orgs/{org_id}/setting with "
                     "{\"synthetic_test\": {\"disabled\": false}}."
                 ),
+                fix_url=org_config_url(client.portal_base, org_id),
             ))
 
         # ── 4. Check custom probes configured ────────────────────────────────

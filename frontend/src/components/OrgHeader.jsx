@@ -10,9 +10,38 @@ function scoreToSeverity(score) {
   return 'critical'
 }
 
+/**
+ * Access-mode styling for the org pill and mode label.
+ * Admin (can_write=true)  → red    — signals live-fire write capability
+ * Observer (can_write=false) → mist — soothing, read-only
+ * Not connected → slate  — neutral default
+ */
+function getAccessModeStyle(org) {
+  if (!org) {
+    return {
+      pill:  'text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border-slate-700 hover:border-slate-500',
+      chevron: 'text-slate-500',
+      label: null,
+    }
+  }
+  if (org.can_write) {
+    return {
+      pill:  'text-red-300 hover:text-red-200 bg-red-500/10 hover:bg-red-500/20 border-red-500/40 hover:border-red-500/60',
+      chevron: 'text-red-400/70',
+      label: { text: 'Admin mode',    className: 'text-red-400' },
+    }
+  }
+  return {
+    pill:  'text-mist-300 hover:text-mist-200 bg-mist-500/10 hover:bg-mist-500/20 border-mist-500/40 hover:border-mist-500/60',
+    chevron: 'text-mist-400/70',
+    label: { text: 'Observer mode', className: 'text-mist-400' },
+  }
+}
+
 export default function OrgHeader({ org, onRefresh, loading, lastUpdated, apiStats, onOpenCredentials }) {
   const severity = scoreToSeverity(org?.overall_score)
   const cfg = getSeverityConfig(severity)
+  const access = getAccessModeStyle(org)
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
@@ -26,14 +55,22 @@ export default function OrgHeader({ org, onRefresh, loading, lastUpdated, apiSta
             </span>
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-400">
-            {/* Org name pill — always visible, always clickable */}
+            {/* Org name pill — color-coded by access mode */}
             <button
               onClick={onOpenCredentials}
-              className="flex items-center gap-1.5 font-medium text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-1 transition-all text-sm"
+              className={`flex items-center gap-1.5 font-medium border rounded-lg px-3 py-1 transition-all text-sm ${access.pill}`}
             >
               <span>{org ? org.org_name : 'Connect Org'}</span>
-              <span className="text-slate-500 text-xs">{org ? '⇄' : '→'}</span>
+              <span className={`text-xs ${access.chevron}`}>{org ? '⇄' : '→'}</span>
             </button>
+
+            {/* Access mode label — immediately after the org pill, same color family */}
+            {access.label && (
+              <span className={`text-xs font-medium ${access.label.className}`}>
+                {access.label.text}
+              </span>
+            )}
+
             {org && (
               <>
                 <span className="text-slate-600">·</span>

@@ -22,6 +22,7 @@ class Finding(BaseModel):
     affected: list[str] = []       # AP names, SSID names, etc.
     recommendation: str | None = None
     raw: dict[str, Any] | None = None  # original API data for drill-down
+    fix_url: str | None = None     # optional deep-link into the Mist portal for manual remediation
 
 
 class SiteResult(BaseModel):
@@ -52,3 +53,6 @@ class OrgSummary(BaseModel):
     overall_score: int | None = None
     modules: list[ModuleOutput] = []
     site_names: dict[str, str] = {}  # {site_id: site_name} for report generation
+    can_write: bool = False          # True when session token has admin or write role
+    portal_base: str = "https://manage.mist.com"  # Mist portal base URL for this session's cloud
+    cloud_id: str = "global"         # human-readable cloud id (global, eu, gc1, ac2, ...)

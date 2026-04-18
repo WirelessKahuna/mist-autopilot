@@ -32,6 +32,7 @@ from cryptography.hazmat.primitives.serialization import Encoding
 from models import ModuleOutput, Finding, Severity
 from mist_client import MistClient, MistAPIError
 from .base import BaseModule
+from ._mist_urls import nac_policies_url
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ class AuthGuardModule(BaseModule):
                     "At minimum, define rules for your primary auth method (cert, IDP, MPSK) "
                     "and a default-deny catch-all as the last rule."
                 ),
+                fix_url=nac_policies_url(client.portal_base, org_id),
             ))
             # No point checking further rule-based items
             score    = self.score_from_findings(findings)
@@ -206,6 +208,7 @@ class AuthGuardModule(BaseModule):
                     "Organization > Access > PKI & Certificates > Trusted CAs. "
                     "If using Mist SCEP, enable it to auto-configure the CA chain."
                 ),
+                fix_url=nac_policies_url(client.portal_base, org_id),
             ))
         else:
             # Parse each cert for expiry
@@ -253,6 +256,7 @@ class AuthGuardModule(BaseModule):
                         "Replace expired CA certificates immediately under "
                         "Organization > Access > PKI & Certificates > Trusted CAs."
                     ),
+                    fix_url=nac_policies_url(client.portal_base, org_id),
                 ))
 
             if critical_certs:
@@ -269,6 +273,7 @@ class AuthGuardModule(BaseModule):
                         "Renew expiring CA certificates immediately and upload replacements "
                         "under Organization > Access > PKI & Certificates > Trusted CAs."
                     ),
+                    fix_url=nac_policies_url(client.portal_base, org_id),
                 ))
 
             if warning_certs:

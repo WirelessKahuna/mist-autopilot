@@ -111,6 +111,9 @@ class APLifecycleModule(BaseModule):
             lambda: defaultdict(list)
         )
         site_disconnected: dict[str, list[str]]  = defaultdict(list)
+        # Keep (name, device_id) pairs for disconnected APs so we can deep-link
+        # to the AP detail page in Mist. device_id comes from inventory 'id'.
+        site_disconnected_meta: dict[str, list[tuple[str, str]]] = defaultdict(list)
         site_eol:          dict[str, list[str]]  = defaultdict(list)
         site_ap_counts:    dict[str, int]        = defaultdict(int)
 
@@ -120,6 +123,7 @@ class APLifecycleModule(BaseModule):
                 continue
 
             ap_name   = ap.get("name") or ap.get("hostname") or ap.get("mac", "unknown")
+            device_id = ap.get("id", "")
             model     = ap.get("model", "unknown")
             firmware  = ap.get("firmware", ap.get("version", ""))
             connected = ap.get("connected", False)
@@ -128,6 +132,7 @@ class APLifecycleModule(BaseModule):
 
             if not connected:
                 site_disconnected[site_id].append(ap_name)
+                site_disconnected_meta[site_id].append((ap_name, device_id))
 
             if firmware and model:
                 site_model_firmware[site_id][model].append(firmware)
@@ -237,6 +242,15 @@ class APLifecycleModule(BaseModule):
                     Severity.critical if len(disconnected) > ap_count * 0.25
                     else Severity.warning
                 )
+                # On critical findings, deep-link to the first disconnected AP's
+                # detail page so operators can see its event log directly.
+                fix_url = None
+                if severity == Severity.critical:
+                    meta = site_disconnected_meta.get(site_id, [])
+                    if meta and meta[0][1]:
+                        first_device_id = meta[0][1]
+                        fix_url = ap_detail_url(client.portal_base, org_id, first_device_id, site_id)
+
                 site_findings.append(Finding(
                     severity=severity,
                     title=f"{site_name} — {len(disconnected)} AP(s) disconnected",
@@ -253,6 +267,7 @@ class APLifecycleModule(BaseModule):
                         "Review AP events in Mist for disconnect reason. "
                         "Verify LLDP/CDP on connected switch ports."
                     ),
+                    fix_url=fix_url,
                 ))
 
             # ── Check 4: EOL hardware ────────────────────────────────────────

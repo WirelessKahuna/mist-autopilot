@@ -31,6 +31,7 @@ from collections import defaultdict
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient
 from .base import BaseModule
+from ._mist_urls import rf_template_url, org_config_url
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +215,14 @@ class RFFingerprintModule(BaseModule):
                             radar_aps.append(ap_name)
 
             if radar_count >= DFS_RADAR_THRESHOLD:
+                # Deep-link: RF template page if we know the template id for this
+                # site, otherwise fall back to the per-site config page.
+                rf_template_id = cfg.get("rf_template_id")
+                if rf_template_id:
+                    fix_url = rf_template_url(client.portal_base, org_id, rf_template_id)
+                else:
+                    fix_url = org_config_url(client.portal_base, org_id, sid)
+
                 site_findings.append(Finding(
                     severity=Severity.critical,
                     title=f"{site_name} — DFS instability ({radar_count} radar events in 7 days)",
@@ -234,6 +243,7 @@ class RFFingerprintModule(BaseModule):
                         "list in the site RF template. Mist RRM learns DFS hit history "
                         "and deprioritizes affected channels automatically over time."
                     ),
+                    fix_url=fix_url,
                 ))
 
             # ── Check 3: DFS channels not configured ───────────────────────

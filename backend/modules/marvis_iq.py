@@ -36,6 +36,7 @@ from datetime import datetime, timezone
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient, MistAPIError
 from .base import BaseModule
+from ._mist_urls import marvis_actions_url
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +205,10 @@ class MarvisIQModule(BaseModule):
                         f"Review {cat_label} actions in Marvis > Actions dashboard. "
                         f"Address high-severity issues first and enable self-driving "
                         f"where available to allow Marvis to auto-remediate."
+                    ),
+                    fix_url=(
+                        marvis_actions_url(client.portal_base, org_id)
+                        if sev == Severity.critical else None
                     ),
                 ))
 

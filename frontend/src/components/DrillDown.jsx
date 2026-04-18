@@ -122,6 +122,16 @@ function FindingCard({ finding }) {
           ↳ {finding.recommendation}
         </p>
       )}
+      {finding.fix_url && (
+        <a
+          href={finding.fix_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-md bg-mist-600 hover:bg-mist-500 text-white text-xs font-medium transition-colors"
+        >
+          Fix in Mist <span aria-hidden="true">↗</span>
+        </a>
+      )}
     </div>
   )
 }

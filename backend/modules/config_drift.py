@@ -21,6 +21,7 @@ from typing import Any
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient
 from .base import BaseModule
+from ._mist_urls import org_config_url
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,8 @@ def _build_ssid_family(name: str, instances: list[dict]) -> list[Finding]:
 
 # ── VLAN Collision Analysis ─────────────────────────────────────────────────
 
-def _check_vlan_collisions(site_name: str, site_id: str, wlans: list[dict]) -> list[Finding]:
+def _check_vlan_collisions(site_name: str, site_id: str, wlans: list[dict],
+                           portal_base: str = "", org_id: str = "") -> list[Finding]:
     findings = []
 
     vlan_groups: dict[int, list[dict]] = defaultdict(list)
@@ -264,6 +266,10 @@ def _check_vlan_collisions(site_name: str, site_id: str, wlans: list[dict]) -> l
                     "ssid1": ssid1, "auth1": auth1, "isolated1": iso1,
                     "ssid2": ssid2, "auth2": auth2, "isolated2": iso2,
                 },
+                fix_url=(
+                    org_config_url(portal_base, org_id, site_id)
+                    if severity == Severity.critical and portal_base and org_id else None
+                ),
             ))
 
     return findings
@@ -363,7 +369,10 @@ class ConfigDriftModule(BaseModule):
             wlans     = annotated_site_wlans.get(site_id, [])
             if not wlans:
                 continue
-            collision_findings = _check_vlan_collisions(site_name, site_id, wlans)
+            collision_findings = _check_vlan_collisions(
+                site_name, site_id, wlans,
+                portal_base=client.portal_base, org_id=org_id,
+            )
             all_findings.extend(collision_findings)
             site_score = self.score_from_findings(collision_findings)
             site_results.append(SiteResult(

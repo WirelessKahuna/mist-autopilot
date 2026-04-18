@@ -192,6 +192,7 @@ class SUBMonitorModule(BaseModule):
                     f"Purchase {gap} additional SUB-MAN licenses to bring the org into compliance. "
                     f"Unlicensed APs may lose management functionality."
                 ),
+                fix_url=subscriptions_url(client.portal_base, org_id),
             ))
 
         # ── 4. Check eval APs ───────────────────────────────────────────────

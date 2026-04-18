@@ -6,6 +6,7 @@ import httpx
 from cachetools import TTLCache
 
 from config import get_settings
+from mist_clouds import portal_base_for_api
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,12 @@ class MistClient:
         """
         If api_token is provided, use it (session credential).
         Otherwise fall back to env var defaults.
+
+        portal_base is derived from base_url so modules can build deep-links
+        into the correct Mist portal for the cloud this session belongs to.
         """
         self.base_url = (base_url or settings.mist_api_base_url).rstrip("/")
+        self.portal_base = portal_base_for_api(self.base_url)
         token = api_token or settings.mist_api_token
         self.headers = {
             "Authorization": f"Token {token}",
@@ -297,13 +302,17 @@ class MistClient:
 mist = MistClient()
 
 
-def get_mist_client(api_token: str | None = None) -> "MistClient":
+def get_mist_client(api_token: str | None = None, api_base: str | None = None) -> "MistClient":
     """
     Factory — returns a session-scoped client if api_token provided,
     otherwise returns the default env-var singleton.
+
+    api_base lets the caller override the cloud for this client instance —
+    required for multi-cloud support, since sessions can belong to any of
+    Mist's geographic clouds (EU, GC1, AC2, etc.) regardless of the env default.
     """
     if api_token:
-        return MistClient(api_token=api_token)
+        return MistClient(api_token=api_token, base_url=api_base)
     return mist
 
 
