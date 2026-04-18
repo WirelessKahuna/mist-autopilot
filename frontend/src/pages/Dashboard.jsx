@@ -4,6 +4,7 @@ import ModuleTile from '../components/ModuleTile'
 import DrillDown from '../components/DrillDown'
 import OrgCredentials from '../components/OrgCredentials'
 import OrgWelcome from '../components/OrgWelcome'
+import Landing from '../components/Landing'
 import { getOrgSummary, getStats, clearSession, clearSessionToken, getSessionToken, setSessionToken, connectOrg, selectSites } from '../api/client'
 import ReportGenerator from '../components/ReportGenerator'
 import { getSavedOrgs, getLastUsedOrg, setLastUsedOrg } from '../utils/savedOrgs'
@@ -11,8 +12,9 @@ import { getSavedOrgs, getLastUsedOrg, setLastUsedOrg } from '../utils/savedOrgs
 // Startup modes
 const MODE = {
   BOOTING:      'booting',       // checking localStorage, haven't decided yet
+  LANDING:      'landing',       // first visit: no saved orgs, no active session
   AUTO_CONNECT: 'auto_connect',  // silently connecting to last used org
-  WELCOME:      'welcome',       // multiple saved orgs — show picker
+  WELCOME:      'welcome',       // multiple saved orgs, show picker
   DASHBOARD:    'dashboard',     // normal dashboard view
   CREDENTIALS:  'credentials',   // credentials modal open
 }
@@ -88,7 +90,7 @@ export default function Dashboard() {
   const [apiStats, setApiStats]   = useState(null)
   const [scanningOrg, setScanningOrg] = useState(null)
 
-  // ── Load dashboard data ──────────────────────────────────────────────────
+  // Load dashboard data
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -111,55 +113,53 @@ export default function Dashboard() {
     }
   }, [])
 
-  // ── Auto-connect a saved org (skip site picker, use all sites) ───────────
+  // Auto-connect a saved org (skip site picker, use all sites)
   const autoConnect = useCallback(async (savedOrg) => {
     setScanningOrg(savedOrg.name)
     setMode(MODE.AUTO_CONNECT)
     try {
       const result = await connectOrg(savedOrg.token)
       setSessionToken(result.session_id)
-      // Use all active sites — no picker for auto-connect
+      // Use all active sites (no picker for auto-connect)
       await selectSites(result.active_sites.map(s => s.id))
       setLastUsedOrg(result.org_id)
       await load()
     } catch (e) {
-      // Auto-connect failed — fall through to env var org
+      // Auto-connect failed: fall back to the landing page rather than silently
+      // loading from env-var credentials. The user can reconnect from there.
       setScanningOrg(null)
-      setMode(MODE.DASHBOARD)
-      await load()
+      setMode(MODE.LANDING)
     }
   }, [load])
 
-  // ── Startup logic ────────────────────────────────────────────────────────
+  // Startup logic
   useEffect(() => {
     const orgs = getSavedOrgs()
     setSavedOrgs(orgs)
 
     if (orgs.length === 0) {
-      // No saved orgs — load env var org directly
-      setMode(MODE.DASHBOARD)
-      load()
+      // No saved orgs: show the landing page instead of auto-loading env
+      // credentials, so the hosted site never opens straight into anyone's org.
+      setMode(MODE.LANDING)
       return
     }
 
     if (orgs.length === 1) {
-      // One saved org — auto-connect silently
+      // One saved org: auto-connect silently
       autoConnect(orgs[0])
       return
     }
 
-    // Multiple saved orgs — check for last used
+    // Multiple saved orgs: check for last used
     const lastUsed = getLastUsedOrg()
     if (lastUsed) {
-      // Auto-connect to last used org
       autoConnect(lastUsed)
     } else {
-      // No last used — show welcome picker
       setMode(MODE.WELCOME)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // Handlers
   const handleConnected = useCallback((info) => {
     setOrg(null)
     setError(null)
@@ -175,8 +175,17 @@ export default function Dashboard() {
     clearSessionToken()
     setOrg(null)
     setScanningOrg(null)
-    load()
-  }, [load])
+    // After disconnecting, route based on what's still saved locally.
+    const orgs = getSavedOrgs()
+    setSavedOrgs(orgs)
+    if (orgs.length === 0) {
+      setMode(MODE.LANDING)
+    } else if (orgs.length === 1) {
+      autoConnect(orgs[0])
+    } else {
+      setMode(MODE.WELCOME)
+    }
+  }, [autoConnect])
 
   const handleWelcomeSelect = useCallback((savedOrg) => {
     autoConnect(savedOrg)
@@ -190,22 +199,36 @@ export default function Dashboard() {
     const orgs = getSavedOrgs()
     setSavedOrgs(orgs)
     if (orgs.length === 0) {
-      setMode(MODE.DASHBOARD)
-      load()
+      setMode(MODE.LANDING)
     }
-  }, [load])
+  }, [])
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // Render
 
-  // Booting — brief flash, shouldn't be seen
+  // Booting, brief flash, shouldn't be seen
   if (mode === MODE.BOOTING) return null
+
+  // Landing page: first visit with no saved orgs and no active session
+  if (mode === MODE.LANDING || (mode === MODE.CREDENTIALS && !org && savedOrgs.length === 0)) {
+    return (
+      <>
+        <Landing onConnect={() => setMode(MODE.CREDENTIALS)} />
+        {mode === MODE.CREDENTIALS && (
+          <OrgCredentials
+            onConnected={handleConnected}
+            onClose={() => setMode(MODE.LANDING)}
+          />
+        )}
+      </>
+    )
+  }
 
   // Auto-connecting
   if (mode === MODE.AUTO_CONNECT) {
     return <AutoConnectScreen orgName={scanningOrg} />
   }
 
-  // Welcome screen — multiple saved orgs, no last used
+  // Welcome screen (multiple saved orgs, no last used)
   if (mode === MODE.WELCOME) {
     return (
       <>
