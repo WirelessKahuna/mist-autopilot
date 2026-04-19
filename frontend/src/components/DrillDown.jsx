@@ -12,7 +12,7 @@ const SCORE_LEGEND = [
 // Module-specific context notes shown beneath the legend
 const MODULE_CONTEXT = {
   sle_sentinel: (
-    'The health score reflects anomaly detection — it measures how many SLE metrics ' +
+    'The health score reflects anomaly detection. It measures how many SLE metrics ' +
     'have dropped below configured thresholds or fallen from their 7-day baseline. ' +
     'A score of 100 means all monitored SLEs are within normal operating range, ' +
     'not that every SLE reads 100%. Actual SLE percentages are shown per-site below.'
@@ -31,42 +31,76 @@ const MODULE_CONTEXT = {
     '23-day baseline. A 10% relative change in either direction is considered notable. ' +
     'For sites where weekends account for less than 20% of traffic, weekend samples are ' +
     'excluded to avoid low-utilization noise skewing the trend. A score of 100 means ' +
-    'all sites are stable or improving — no metrics degraded ≥10%.'
+    'all sites are stable or improving, with no metrics degraded ≥10%.'
   ),
   secure_scope: (
     'The score reflects wireless security posture across all SSIDs and sites. ' +
     'Critical findings indicate immediate security boundary failures (open SSIDs with ' +
     'no VLAN, or shared VLANs between open and protected SSIDs). Warnings are important ' +
-    'gaps (PMF disabled, rogue detection off, PSK reuse). Info findings are educational — ' +
+    'gaps (PMF disabled, rogue detection off, PSK reuse). Info findings are educational: ' +
     'transition modes like OWE and WPA3/WPA2 mixed mode are expected during migration ' +
     'but should be planned for eventual removal.'
   ),
   roam_guard: (
     'Roaming health is scored using the 7-day SLE roaming metric combined with fast roam ' +
     'event data. Sticky client findings require both SLE signal-quality degradation AND ' +
-    'corroborating fast roam events — a single signal alone is flagged as informational only. ' +
+    'corroborating fast roam events; a single signal alone is flagged as informational only. ' +
     '802.11r warnings fire only on 802.1X SSIDs where full RADIUS re-auth on every roam is ' +
     'the real cost. High Density data rate recommendations only appear when roaming SLE is ' +
-    'below 80 — they are a remediation suggestion, not a standalone best-practice audit.'
+    'below 80, as a remediation suggestion rather than a standalone best-practice audit.'
   ),
   rf_fingerprint: (
     'RF analysis uses current AP radio stats for band utilization, channel width, and TX power. ' +
     'Band imbalance fires when >30% of connected clients are on 2.4 GHz despite 5/6 GHz APs ' +
     'being present (minimum 10 clients). DFS instability requires 3+ radar detection events ' +
-    'in the 7-day window — Critical because each event drops all associated clients. ' +
+    'in the 7-day window, Critical because each event drops all associated clients. ' +
     'DFS not configured fires when the RF template or site settings explicitly list only ' +
-    'non-DFS channels — an empty channel list means automatic (all channels allowed) and is NOT flagged. ' +
+    'non-DFS channels; an empty channel list means automatic (all channels allowed) and is NOT flagged. ' +
     'Channel width mismatches compare all APs on the same band at the same site. ' +
     'TX power outliers fire when an AP deviates ≥6 dB from the site average for that band.'
   ),
   wan_sentinel: (
     'WAN analysis covers sites with SSR or SRX gateway devices under WAN Assurance. ' +
-    'Wireless-only orgs will show a clean "no WAN devices found" result — this is correct behavior. ' +
+    'Wireless-only orgs will show a clean "no WAN devices found" result, which is correct behavior. ' +
     'Tunnel down is Critical when no secondary path is active, Warning when failover is carrying traffic. ' +
     'Tunnel flapping requires 3+ up/down cycles in 7 days. ' +
-    'Recurring failover requires 3+ failover events in 7 days — flags chronic instability ' +
+    'Recurring failover requires 3+ failover events in 7 days, flagging chronic instability ' +
     'even when the primary link is currently up. ' +
-    'WAN SLEs checked: Gateway Health, WAN Availability, and Application Health — each below 80% triggers a Warning.'
+    'WAN SLEs checked: Gateway Health, WAN Availability, and Application Health. Each below 80% triggers a Warning.'
+  ),
+  sub_monitor: (
+    'Subscription analysis audits Mist license entitlements against deployed AP inventory. ' +
+    'Expired subscriptions and expiry within 30 days are Critical; expiry within 31 to 90 days is Warning. ' +
+    'A SUB-MAN coverage gap (deployed APs exceeding entitled licenses) is Critical, since unlicensed ' +
+    'APs may lose management functionality. APs running on evaluation subscriptions generate a Warning ' +
+    'because eval licenses have fixed end dates and are not renewable. A score of 100 means all ' +
+    'subscriptions are current, SUB-MAN coverage matches deployed APs, and no APs are on eval.'
+  ),
+  minis_monitor: (
+    'Minis readiness covers the prerequisites for Marvis synthetic testing. SUB-VNA entitlement is ' +
+    'required and its absence is Critical. Org-level or site-level Minis disable flags are Warnings. ' +
+    'APs below firmware 0.14.29313 cannot participate in Minis and are flagged as Warning. ' +
+    'Missing custom probes and disabled WAN speedtest are Info findings. A score of 100 means ' +
+    'SUB-VNA is active, Minis is enabled org-wide, probes are configured, and every AP meets the ' +
+    'firmware gate. Note: test-result data requires a production org with active SUB-VNA to validate.'
+  ),
+  auth_guard: (
+    'Access Assurance analysis audits NAC rule quality, PKI and SCEP status, CA certificate health, ' +
+    'and 802.1X WLAN coverage. No NAC rules and missing or expired CA certificates are Critical. ' +
+    'CA certs expiring within 30 days are Critical; within 31 to 90 days are Warning. ' +
+    'Missing certificate-authentication rules, disabled SCEP, and unresolved NAC tag references are Warnings. ' +
+    'Unnamed or disabled rules are Info findings. Mist enforces an implicit default-deny for unmatched ' +
+    'requests, so no explicit deny rule is required. A score of 100 means rules are present and named, ' +
+    'SCEP is enabled, CA certs are current, and no dangling tag references exist.'
+  ),
+  marvis_iq: (
+    'Marvis Actions analysis fetches open AI-generated actions across the org and groups them by ' +
+    'category (AP, switch, gateway, wireless, wired). Five or more open actions in a single category ' +
+    'is Critical, two to four is Warning. Recurrent issues (batch_count above 50) are Warnings because ' +
+    'high event counts indicate unresolved root causes. Self-drivable actions that have not been ' +
+    'enabled for auto-remediation are surfaced as Info. Site concentration above 60% of all actions ' +
+    'at a single site is a Warning, flagging systemic infrastructure issues. A score of 100 means ' +
+    'no open actions, or that all actions have been validated or snoozed.'
   ),
 }
 
