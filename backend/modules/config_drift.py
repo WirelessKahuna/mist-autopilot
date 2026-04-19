@@ -21,7 +21,7 @@ from typing import Any
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient
 from .base import BaseModule
-from ._mist_urls import org_config_url, templates_url
+from ._mist_urls import org_config_url, templates_url, wlan_fix_url, wlan_template_url
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +272,7 @@ def _check_vlan_collisions(site_name: str, site_id: str, wlans: list[dict],
                     "ssid2": ssid2, "auth2": auth2, "isolated2": iso2,
                 },
                 fix_url=(
-                    org_config_url(portal_base, org_id, site_id)
+                    wlan_fix_url(portal_base, org_id, w1 if _is_open(auth1) else w2)
                     if severity == Severity.critical and portal_base and org_id else None
                 ),
             ))
@@ -351,6 +351,7 @@ class ConfigDriftModule(BaseModule):
                         "Use Mist Variables (e.g. {{vlan_id}}) for any per-site differences. "
                         "This enables consistent config governance and reduces operational overhead."
                     ),
+                    fix_url=wlan_fix_url(client.portal_base, org_id, local_wlans[0]),
                 ))
 
         # 2. SSID Family Analysis — using derived WLANs per site

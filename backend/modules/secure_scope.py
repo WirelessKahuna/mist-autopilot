@@ -27,7 +27,7 @@ from collections import defaultdict
 from models import ModuleOutput, Finding, Severity, SiteResult
 from mist_client import MistClient
 from .base import BaseModule
-from ._mist_urls import org_config_url, templates_url
+from ._mist_urls import templates_url, wlan_fix_url
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +240,7 @@ class SecureScopeModule(BaseModule):
                                 "Consider adding a captive portal with authentication if this "
                                 "SSID is intended for guest access."
                             ),
-                            fix_url=org_config_url(client.portal_base, org_id, sid),
+                            fix_url=wlan_fix_url(client.portal_base, org_id, w),
                         ))
                     elif vlan_id in protected_vlans:
                         protected_ssids = [
@@ -264,7 +264,7 @@ class SecureScopeModule(BaseModule):
                                 f'corporate resources. This finding overlaps with Config Drift '
                                 f'VLAN collision detection and should be prioritized.'
                             ),
-                            fix_url=org_config_url(client.portal_base, org_id, sid),
+                            fix_url=wlan_fix_url(client.portal_base, org_id, w),
                         ))
                     elif portal_auth is None or portal_auth == "none":
                         site_findings.append(Finding(
