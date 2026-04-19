@@ -467,33 +467,6 @@ export default function ReportGenerator({ orgName, orgId, moduleResults = [], si
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-      <span style={{
-        padding: '4px 10px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontWeight: 700,
-        letterSpacing: '0.06em',
-        background: hc.bg,
-        color: hc.text,
-        textTransform: 'uppercase',
-      }}>
-        {health}
-      </span>
-
-      {pills.map(p => (
-        <span key={p.label} style={{
-          padding: '3px 8px',
-          borderRadius: '4px',
-          fontSize: '11px',
-          fontWeight: 600,
-          background: p.color + '22',
-          color: p.color,
-          border: '1px solid ' + p.color + '55',
-        }}>
-          {p.count} {p.label}
-        </span>
-      ))}
-
       <button
         onClick={handleDownload}
         disabled={disabled}
