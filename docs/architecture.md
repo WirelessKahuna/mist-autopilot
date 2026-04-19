@@ -3,7 +3,7 @@
 ## Overview
 
 Mist Autopilot is a self-driving network org health review tool built on Mist APIs.
-It runs eight analysis modules in parallel and surfaces findings in a single-pane dashboard,
+It runs twelve analysis modules in parallel and surfaces findings in a single-pane dashboard,
 replacing manual network reviews with automated detection, diagnosis, and recommended remediation.
 
 ## Stack
@@ -13,7 +13,7 @@ replacing manual network reviews with automated detection, diagnosis, and recomm
 | Backend | Python 3.12 + FastAPI | Async-native, auto-generates API docs at /docs |
 | Frontend | React 18 + Vite + Tailwind | Modern, component-based, hot-reload during development |
 | Deployment | Docker Compose | Single-command launch, no local Python/Node required |
-| Auth | Mist API token (env var) | Token never reaches the browser — all calls are server-side |
+| Auth | Mist Org API token, pasted at runtime | Token never reaches the browser after auth; server-side session-only |
 | Cache | In-memory TTLCache (5 min) | Reduces redundant API calls within a session |
 
 ## Module Architecture
@@ -39,21 +39,52 @@ Every module returns a `ModuleOutput` with:
 
 ### Score Calculation
 
-Scores start at 100 and deduct per finding:
-- Critical finding: −20 points
-- Warning finding: −10 points
-- Info finding: −2 points
+Module scores use a square-root diminishing-returns curve so a module with many
+findings of the same severity doesn't slam straight to zero:
+
+```
+score = 100 − 20·√C − 10·√W − 2·√I
+```
+
+where C, W, I are counts of critical, warning, and info findings. Clamped to [0, 100].
+
+This preserves intuition (one critical is meaningfully worse than one warning) while
+keeping the top end distinguishable (a module with 25 criticals still scores lower than
+one with 5, instead of both flooring at zero). For reference:
+
+| Criticals | Score (ignoring other findings) |
+|---|---|
+| 1 | 80 |
+| 3 | 65 |
+| 5 | 55 |
+| 10 | 37 |
+| 25 | 0 |
 
 Score ranges map to severity: 80–100 = Healthy, 60–79 = Info, 40–59 = Warning, 0–39 = Critical.
+
+### Org-Level Rollup
+
+The top-of-page Org Health score is the unweighted arithmetic mean of every module's
+score, rounded to the nearest integer. Modules that error out (score = None) are
+excluded from the average rather than counted as zero — a broken check should not
+drag down an otherwise healthy org's score.
 
 ## Modules Built
 
 | Module | Autonomy Level | Key APIs Used |
 |---|---|---|
+| SecureScope | L1 + L2 | /sites/{id}/wlans |
+| AuthGuard | L1 + L2 | /orgs/{id}/nacrules, /orgs/{id}/nactags, /orgs/{id}/setting |
+| RoamGuard | L1 + L2 | /sites/{id}/sle/.../roaming, events endpoints |
+| SLE Sentinel | L1 + L2 + L3 hook | /sites/{id}/sle/{scope}/{metric}/summary |
+| RF Fingerprint Analyzer | L1 + L2 | /sites/{id}/stats/devices, RF templates |
+| Client Experience Trends | L1 + L2 | /sites/{id}/sle/{scope}/{metric}/summary (30d window) |
 | Config Drift Detective | L1 + L2 | /orgs/{id}/wlans, /sites/{id}/wlans, /orgs/{id}/wlantemplates |
-| SLE Sentinel | L1 + L2 + L3 hook | /sites/{id}/sle/site/{id}/metric/{metric}/summary |
 | AP Lifecycle Monitor | L1 + L2 + L3 hook | /orgs/{id}/inventory, /sites/{id}/setting |
-| Client Experience Trends | L1 + L2 | /sites/{id}/sle/site/{id}/metric/{metric}/summary |
+| WAN & Uplink Sentinel | L1 + L2 | gateway stats, WAN tunnels, WAN SLE metrics |
+| SUBMonitor | L1 | /orgs/{id}/licenses |
+| MinisMonitor | L1 | /orgs/{id}/licenses, /orgs/{id}/setting, inventory |
+| MarvisIQ | L1 | /labs/orgs/{id}/suggestions |
 
 ## API Rate Limit Scaling Considerations
 
@@ -152,10 +183,20 @@ demonstrates that the tool is designed for enterprise scale, not just demo orgs.
 
 ## Security
 
-- API token stored in `.env` only — never committed to Git, never sent to the browser
-- All Mist API calls are server-side (FastAPI backend)
-- No data persisted to disk — all results are in-memory per session
-- CORS configured to allow only the frontend container origin
+- **No env-var token fallback.** Every `/api/org/*` and `/api/modules/*` request requires a
+  valid `X-Session-Token` header. Without one the backend returns 401. The hosted deployment
+  has no credentials baked in — every scan uses a token the operator pasted at runtime.
+- **Session store is in-memory.** The `session_id` (not the Mist token) is what the browser
+  sees. Tokens live in a Python dict in the FastAPI process, never on disk, never logged.
+  Container restarts wipe the store.
+- **Browser-side token persistence is opt-in.** `sessionStorage` by default (tab close clears it).
+  `localStorage` only if the user checks *Remember this org across browser sessions*, cleared
+  on *Forget* or *Disconnect*. The companion `mist_last_used_org_id` key is cleared on
+  Disconnect and when the saved-orgs list drops to zero.
+- **Landing page blocks silent org access.** First-time visitors land on a branded connect page
+  rather than auto-loading any org. The app never opens into someone else's data.
+- **All Mist API calls are server-side.** The browser never sees the Mist token after it's pasted.
+- **CORS** is configured for the frontend container origin only.
 
 ## Adding a New Module
 

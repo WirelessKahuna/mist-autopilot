@@ -8,7 +8,7 @@ It takes the quarterly network review that doesn't happen (because nobody has tw
 
 ### Deploy in sixty seconds
 
-Go to **tools.wirelesskahuna.com** in any modern browser. Paste a Mist Org API Token. Pick the sites to scan. Click Scan. **That is the entire deployment.**
+Go to **tools.wirelesskahuna.com** in any modern browser. First-time visitors land on a branded welcome page with a single *Connect an Org* call to action, product pitch, and a screenshot of the full dashboard. The app does not auto-open into anyone's org. Click Connect, paste a Mist Org API Token, pick the sites to scan, click Scan. **That is the entire deployment.**
 
 No install. No agent. No CLI. No Python, no Node, no Docker. No download. No VPN, no firewall change, no approval chain. Any modern browser on any operating system (Chrome, Safari, Edge, Firefox, on Windows, Mac, Linux, iOS, Android) is the only client the operator needs. A field engineer running a pre-sales health check, a customer NetOps lead running a quarterly audit, and an MSP running a client review all look identical from Autopilot's perspective: paste a token, get a report. Observer role is sufficient for every module; Autopilot issues no writes. Download a professional PDF from the dashboard footer and hand it to a director before the next meeting.
 

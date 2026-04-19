@@ -114,7 +114,7 @@ Between L2 and L3 sits a practical operator need that pure detection and pure au
 
 ### Path A: In your browser (no installation)
 
-1. Open **[tools.wirelesskahuna.com](https://tools.wirelesskahuna.com)**.
+1. Open **[tools.wirelesskahuna.com](https://tools.wirelesskahuna.com)**. First-time visitors land on the Autopilot welcome page with a single *Connect an Org* call to action, product pitch, and a screenshot of the full dashboard. The app does not auto-open into any org.
 2. Click *Connect an Org*.
 3. Paste a Mist Org API Token. (Generate one at `manage.mist.com → Organization → Settings → API Token`.) On submission, Autopilot probes each of Mist's twelve geographic clouds in turn until one authenticates the token, then routes all subsequent API calls and portal deep-links to the matching cloud. The detected cloud is surfaced in the connect response.
 4. Optionally check *Remember this org across browser sessions* to save the token to the browser's local storage for one-click re-connect later. Saved orgs can be removed at any time via the *Forget* control.
@@ -156,7 +156,7 @@ Self-hosting is for contributors, reviewers, and operators who want to run their
 **Prerequisites**
 
 - Docker Desktop (Docker Engine + Compose)
-- A Mist Org API Token (for `.env`-based default credentials, optional; the UI accepts tokens at runtime)
+- A Mist Org API Token (pasted through the UI at runtime; Observer role is sufficient)
 
 **Configure**
 
@@ -167,12 +167,12 @@ cp .env.example .env
 Edit `.env`:
 
 ```
-MIST_API_TOKEN=your_token_here        # optional, used as default if UI session absent
-MIST_API_BASE_URL=https://api.mist.com # session tokens auto-detect the cloud; this is only used for env-var fallback
-MIST_ORG_ID=your_org_id_here          # optional, used as default if UI session absent
+MIST_API_BASE_URL=https://api.mist.com  # default base for pydantic settings; sessions auto-detect their cloud
 CACHE_TTL_SECONDS=300
 LOG_LEVEL=INFO
 ```
+
+> **Note on env vars.** Earlier versions of Autopilot supported `MIST_API_TOKEN` and `MIST_ORG_ID` as fallback credentials when no UI session was active. That fallback has been removed: the hosted deployment and self-hosted instances both require the operator to connect a token through the UI. This guarantees the app never opens into a baked-in org.
 
 Supported Mist clouds (all auto-detected at runtime from session tokens): Global 01 (`api.mist.com`), Global 02 (`api.gc1.mist.com`), Global 03 (`api.ac2.mist.com`), Global 04 (`api.gc2.mist.com`), Global 05 (`api.gc4.mist.com`), EMEA 01 (`api.eu.mist.com`), EMEA 02 (`api.gc3.mist.com`), EMEA 03 (`api.ac6.mist.com`), EMEA 04 (`api.gc6.mist.com`), APAC 01 (`api.ac5.mist.com`), APAC 02 (`api.gc5.mist.com`), APAC 03 (`api.gc7.mist.com`).
 
@@ -256,16 +256,16 @@ Interactive OpenAPI documentation is available at `/docs` on the running backend
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/org/summary` | Runs all modules in parallel and returns org score, site count, per-module output, and a `site_id → site_name` map. Uses the session token's credentials when present; otherwise falls back to env-var defaults. |
-| `GET` | `/api/org/sites` | Returns the raw site list for the active credentials. |
-| `GET` | `/api/org/stats` | Returns `{ last_refresh, hourly }` API call counters for the active org. |
+| `GET` | `/api/org/summary` | Runs all modules in parallel and returns org score, site count, per-module output, and a `site_id → site_name` map. Requires `X-Session-Token`; returns 401 otherwise. |
+| `GET` | `/api/org/sites` | Returns the raw site list for the active session. Requires `X-Session-Token`. |
+| `GET` | `/api/org/stats` | Returns `{ last_refresh, hourly }` API call counters for the active org. Requires `X-Session-Token`. |
 
 ### Module operations
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/modules/` | Returns the module registry: `module_id`, `display_name`, `icon` for each. |
-| `GET` | `/api/modules/{module_id}` | Runs a single module and returns its output. Used for tile-level refresh. |
+| `GET` | `/api/modules/{module_id}` | Runs a single module and returns its output. Used for tile-level refresh. Requires `X-Session-Token`. |
 
 ### Credentials & sessions
 
@@ -273,7 +273,7 @@ Interactive OpenAPI documentation is available at `/docs` on the running backend
 |--------|------|-------------|
 | `POST` | `/api/credentials/connect` | Validates a submitted Mist token, discovers the org via `/api/v1/self`, fetches sites + inventory in parallel, counts APs per site, creates a session, and returns `session_id`, org info, active sites (with AP counts), and inactive-site count. |
 | `POST` | `/api/credentials/sites` | Updates the selected site IDs for the current session. Requires `X-Session-Token` header. |
-| `DELETE` | `/api/credentials/session` | Clears the current session, reverting to env-var defaults. |
+| `DELETE` | `/api/credentials/session` | Clears the current session on the server. Frontend also clears browser session state, forgets the last-used-org marker, and returns to the landing page (or welcome picker if other saved orgs remain). |
 
 ### Health
 
@@ -287,13 +287,15 @@ Session credentials are passed via the `X-Session-Token` request header when pre
 
 ## Security posture
 
+**Session-only backend, no env-var fallback.** Every `/api/org/*` and `/api/modules/*` request requires a valid `X-Session-Token` header. Without one the backend returns 401. The hosted deployment has no Mist credentials in its environment at all — every scan uses a token the operator pasted at runtime.
+
 **Token scope.** Observer role is sufficient for every current module; the app issues no writes today. Any Mist role is accepted (admin, write, helpdesk, installer, read, observer); the `/api/credentials/connect` response includes a `can_write` flag computed from the token's org role (true for `admin`/`write`, false for all other roles) and the frontend renders the org pill with a red "Admin mode" label when `can_write` is true and a mist-blue "Observer mode" label otherwise, so operators can see at a glance what the token they pasted is capable of. Write-capable actions are planned for future L3 modules and will be gated on `can_write`.
 
 **Token storage, server side.** Session tokens live in a Python `SessionStore` dict in the FastAPI process. No disk writes, no database, no log output of token material. Sessions expire after 8 hours of inactivity. Container restarts (Railway deploys, crashes, idle cycling) wipe the entire store.
 
 **Token storage, browser side, default.** The `session_id` (not the Mist token) is held in the browser's `sessionStorage`, cleared automatically when the tab closes.
 
-**Token storage, browser side, opt-in.** If the user checks *Remember this org across browser sessions* on the connect dialog, the Mist token is additionally written to the browser's `localStorage` under the key `mist_saved_orgs`. This persists across browser restarts until the user clicks *Forget* on that saved org or clears browser storage. The backend never writes the token anywhere; persistence is entirely a browser-local opt-in.
+**Token storage, browser side, opt-in.** If the user checks *Remember this org across browser sessions* on the connect dialog, the Mist token is additionally written to the browser's `localStorage` under the key `mist_saved_orgs`. This persists across browser restarts until the user clicks *Forget* on that saved org or clears browser storage. A companion `mist_last_used_org_id` key is used to auto-connect the most recently used org on page load when multiple saved orgs exist; this key is cleared on *Disconnect*, when *Forget* removes the matching org, and when the saved-orgs list drops to zero. The backend never writes the token anywhere; persistence is entirely a browser-local opt-in.
 
 **Transport.** Every Mist API call is issued server-side from the FastAPI backend. The token never reaches third-party services. The browser only ever sees the opaque `session_id`.
 
@@ -302,6 +304,24 @@ Session credentials are passed via the `X-Session-Token` request header when pre
 **Caching.** API responses are cached in-process in an `TTLCache` with a 5-minute default TTL, keyed by URL + params. This cache is per-process and evaporates on restart.
 
 **Rate limit awareness.** The built-in API call counter exposes both per-refresh and hourly counts. Modules use in-parallel fetch patterns with a 0.25-second inter-request throttle, honor `Retry-After` on 429 responses, and cache responses aggressively to stay well under the Mist hourly budget on typical scans.
+
+---
+
+## Scoring
+
+Every module returns a 0-100 score derived from its list of findings using a square-root diminishing-returns curve:
+
+```
+score = 100 − 20·√C − 10·√W − 2·√I
+```
+
+where C, W, I are counts of critical, warning, and info findings. Clamped to [0, 100]. The curve keeps operator intuition intact (one critical hurts meaningfully more than one warning) while preventing a module with many findings of the same severity from flooring at zero and becoming indistinguishable from a less-bad case.
+
+Score ranges map to severity: **80-100 Healthy, 60-79 Info, 40-59 Warning, 0-39 Critical**.
+
+**Org Health** (the score at the top of the dashboard) is the unweighted arithmetic mean of every module's score, rounded to the nearest integer. Modules that error out (score = None) are excluded from the average so one broken check doesn't drag down an otherwise healthy org.
+
+See `docs/architecture.md` for the reference table of score values at different finding counts.
 
 ---
 
@@ -324,4 +344,4 @@ Live deployment: https://tools.wirelesskahuna.com (Railway-hosted, custom domain
 
 This README is maintained in parallel with the code. The canonical source of truth for the module list is `backend/modules/__init__.py`. The canonical source of truth for API routes is the FastAPI routers under `backend/routers/`. If this document ever disagrees with either, the code wins.
 
-Last synced with code: April 17, 2026.
+Last synced with code: April 18, 2026.

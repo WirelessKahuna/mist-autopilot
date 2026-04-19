@@ -85,18 +85,23 @@ class BaseModule(ABC):
     @staticmethod
     def score_from_findings(findings) -> int:
         """
-        Derive a 0–100 score from a list of Finding objects.
-        Starts at 100 and deducts:  critical = 20pts, warning = 10pts, info = 2pts
+        Derive a 0-100 score from a list of Finding objects using a
+        square-root diminishing-returns curve. The first finding of a given
+        severity hits hardest; additional findings of the same severity
+        contribute less each time, so a module with 25 criticals still scores
+        meaningfully lower than one with 5.
+
+            score = 100 - 20*sqrt(C) - 10*sqrt(W) - 2*sqrt(I)
+
+        where C/W/I are the counts of critical, warning, and info findings.
+        Clamped to [0, 100].
         """
-        score = 100
-        for f in findings:
-            if f.severity.value == "critical":
-                score -= 20
-            elif f.severity.value == "warning":
-                score -= 10
-            elif f.severity.value == "info":
-                score -= 2
-        return max(0, score)
+        import math
+        criticals = sum(1 for f in findings if f.severity.value == "critical")
+        warnings  = sum(1 for f in findings if f.severity.value == "warning")
+        infos     = sum(1 for f in findings if f.severity.value == "info")
+        score = 100 - 20 * math.sqrt(criticals) - 10 * math.sqrt(warnings) - 2 * math.sqrt(infos)
+        return max(0, min(100, int(round(score))))
 
     @staticmethod
     def severity_from_score(score: int | None) -> Severity:
