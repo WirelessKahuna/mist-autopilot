@@ -7,7 +7,7 @@ import OrgWelcome from '../components/OrgWelcome'
 import Landing from '../components/Landing'
 import { getOrgSummary, getStats, clearSession, clearSessionToken, getSessionToken, setSessionToken, connectOrg, selectSites } from '../api/client'
 import ReportGenerator from '../components/ReportGenerator'
-import { getSavedOrgs, getLastUsedOrg, setLastUsedOrg } from '../utils/savedOrgs'
+import { getSavedOrgs, getLastUsedOrg, setLastUsedOrg, clearLastUsedOrg } from '../utils/savedOrgs'
 
 // Startup modes
 const MODE = {
@@ -159,6 +159,7 @@ export default function Dashboard() {
   const handleDisconnect = useCallback(async () => {
     await clearSession()
     clearSessionToken()
+    clearLastUsedOrg()
     setOrg(null)
     setScanningOrg(null)
     const orgs = getSavedOrgs()
@@ -184,6 +185,7 @@ export default function Dashboard() {
     const orgs = getSavedOrgs()
     setSavedOrgs(orgs)
     if (orgs.length === 0) {
+      clearLastUsedOrg()
       setMode(MODE.LANDING)
     }
   }, [])

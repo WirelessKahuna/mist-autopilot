@@ -46,3 +46,7 @@ export function getLastUsedOrg() {
   if (!lastId) return null
   return getSavedOrgs().find(o => o.id === lastId) || null
 }
+
+export function clearLastUsedOrg() {
+  localStorage.removeItem(LAST_USED_KEY)
+}
