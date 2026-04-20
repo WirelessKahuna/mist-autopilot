@@ -333,8 +333,6 @@ Deadline: April 20, 2026.
 Team Signal & Noise:
 - **Mike Wade**, Field PLM, AI-Ops Specialist, HPE. [@WirelessKahuna](https://www.linkedin.com/in/wirelesskahuna/)
   [WirelessKahuna](https://github.com/WirelessKahuna)
-- **Garth Humphrey**, Field PLM, AI-Ops Specialist, HPE. [@TheWifIJedi](https://www.linkedin.com/in/garthhumphrey/)
-  [slugboy1122](https://github.com/slugboy1122)
 
 Live deployment: https://tools.wirelesskahuna.com (Railway-hosted, custom domain via GoDaddy CNAME). Repository: https://github.com/WirelessKahuna/mist-autopilot
 
