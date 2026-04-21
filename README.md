@@ -207,6 +207,12 @@ npm run dev
 
 ## Architecture
 
+### Deployment
+
+![Deployment Architecture](docs/arch-deployment.svg)
+
+### Stack
+
 Python 3.12 + FastAPI on the backend, React + Vite + Tailwind on the frontend. Single-image Docker deploy with Nginx fronting a local uvicorn process; the same container serves the built frontend and proxies `/api/*` to the backend.
 
 ```
@@ -342,4 +348,4 @@ Live deployment: https://tools.wirelesskahuna.com (Railway-hosted, custom domain
 
 This README is maintained in parallel with the code. The canonical source of truth for the module list is `backend/modules/__init__.py`. The canonical source of truth for API routes is the FastAPI routers under `backend/routers/`. If this document ever disagrees with either, the code wins.
 
-Last synced with code: April 18, 2026.
+Last synced with code: April 20, 2026.
