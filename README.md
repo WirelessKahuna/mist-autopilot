@@ -4,7 +4,7 @@
 Live: (https://tools.wirelesskahuna.com)
 GitHub: (https://github.com/WirelessKahuna/mist-autopilot)
 
-Mist Autopilot reviews an entire Juniper Mist organization in a single pass, across every selected site, and returns a scored, explained health report. Each of its twelve analysis modules queries live Mist APIs, identifies problems, classifies them by severity, and recommends specific corrective actions.
+Mist Autopilot reviews an entire Juniper Mist organization in a single pass, across every selected site, and returns a scored, explained health report. Each of its twelve analysis modules queries live Mist APIs, identifies problems, classifies them by severity, and recommends specific corrective actions. In a single scan, Autopilot evaluates more than 70 distinct conditions — rising to 90+ when counting individual metric evaluations across SLE domains and trend comparisons.
 
 It runs in any modern browser. No installation. No agent. No access to your wired or wireless infrastructure beyond a read-only API token you control.
 
@@ -89,6 +89,91 @@ Modules are grouped below by domain.
 ### AI-Driven Ops
 
 **🔬 MarvisIQ: Marvis Actions analyzer.** Fetches active Marvis suggestions from the Mist platform's AI actions engine. Groups open actions by category (AP, switch, gateway, wireless, wired), identifies recurrent issues with elevated batch counts, detects self-drivable actions that have not been enabled for auto-remediation, and flags sites generating disproportionate action volume (over 60% concentration at a single site signals systemic infrastructure problems).
+
+### Checks at a glance
+
+**🔐 SecureScope**
+- Open SSID — severity varies by VLAN assignment and captive portal configuration
+- PMF enforcement disabled on WPA2/WPA3 SSIDs
+- PSK reuse across differently-named SSIDs
+- 802.1X SSID with no RADIUS servers configured
+- Rogue AP detection not enabled at site level
+- OWE transition mode active long-term
+- WPA3/WPA2 transition mode active long-term
+
+**🔑 AuthGuard**
+- No NAC rules configured at org level
+- Default-deny catch-all rule missing
+- Unnamed NAC rules
+- Disabled NAC rules
+- SCEP/PKI not enabled — certificate issuance inactive
+- No CA certificates uploaded
+- CA certificate expiry — expired, critical window, or warning window
+- No certificate-based authentication rule defined
+- Unresolved NAC tag references in rules
+
+**📡 RoamGuard**
+- Sticky clients — SLE degradation corroborated by fast-roam events
+- 802.11r not enabled on 802.1X SSIDs
+- High density data rates not set when roaming SLE is below threshold
+
+**📊 SLE Sentinel**
+- Absolute threshold breach — score below floor (coverage, capacity, roaming, throughput, AP uptime, successful connect, time-to-connect, wired NAC, WAN availability)
+- Baseline drop — score fell more than configured delta from 7-day baseline
+
+**📶 RF Fingerprint Analyzer**
+- No RF template assigned to site
+- Band utilization imbalance — excess clients on 2.4 GHz when 5/6 GHz is present
+- DFS instability — three or more radar events in seven days
+- DFS channels excluded from site or template channel list
+- Channel width mismatch across APs on the same band at the same site
+- TX power outlier — AP deviates 6 dB or more from site average
+
+**📈 Client Experience Trends**
+- Site degrading — one or more SLE metrics declined 10%+ versus 23-day baseline
+- Site improving — one or more SLE metrics improved 10%+ versus 23-day baseline
+
+**🔍 Config Drift Detective**
+- SSID family diff — security field inconsistency across sites
+- Template compliance — site-local WLANs not pushed from a WLAN template
+- VLAN collision — multiple SSIDs sharing the same VLAN ID at a site
+- Security boundary — open and authenticated SSIDs on the same VLAN
+
+**🔄 AP Lifecycle Monitor**
+- AP Auto Update disabled at site
+- Same-model firmware mixing within a site
+- Disconnected APs
+- End-of-Sale hardware detected
+
+**🌐 WAN & Uplink Sentinel**
+- Tunnel down with no failover path
+- Tunnel down with failover active
+- Tunnel flapping — repeated up/down state changes in seven days
+- Recurring WAN failover events
+- WAN SLE degraded — gateway health, WAN availability, or application health below threshold
+
+**📋 SUBMonitor**
+- Expired subscriptions by SKU
+- Subscriptions expiring within 30 days
+- Subscriptions expiring within 31–90 days
+- SUB-MAN coverage gap — deployed APs exceed entitlements
+- APs on eval subscription
+
+**🤖 MinisMonitor**
+- SUB-VNA not entitled
+- Marvis Minis disabled at org level
+- No custom application probes configured
+- WAN speedtest not enabled
+- APs below minimum firmware version for Minis support
+- Per-site Minis disabled
+- Custom probe inventory — count and type summary
+
+**🔬 MarvisIQ**
+- Open Marvis actions by category with symptom breakdown
+- Recurrent issues — batch count above threshold
+- Self-drivable actions not enabled for auto-remediation
+- Site concentration — one site generating disproportionate action volume
+- No open actions — org is clean
 
 ---
 
@@ -348,4 +433,4 @@ Live deployment: https://tools.wirelesskahuna.com (Railway-hosted, custom domain
 
 This README is maintained in parallel with the code. The canonical source of truth for the module list is `backend/modules/__init__.py`. The canonical source of truth for API routes is the FastAPI routers under `backend/routers/`. If this document ever disagrees with either, the code wins.
 
-Last synced with code: April 20, 2026.
+Last synced with code: April 29, 2026.
