@@ -42,6 +42,7 @@ class ModuleOutput(BaseModel):
     summary: str = ""               # one-line human-readable summary
     findings: list[Finding] = []    # org-level findings
     sites: list[SiteResult] = []    # per-site breakdown
+    data: dict[str, Any] | None = None  # module-specific structured payload (charts, tables)
     status: str = "ok"              # ok | coming_soon | error
     error: str | None = None        # populated if status == error
 

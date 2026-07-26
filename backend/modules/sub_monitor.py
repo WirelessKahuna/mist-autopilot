@@ -1,65 +1,169 @@
 """
-SUBMonitor — Subscription & License Auditor
-============================================
-Audits Mist subscription entitlements against deployed AP inventory.
-Uses GET /api/v1/orgs/{org_id}/licenses for all license data.
+SUBMonitor: Subscription Auditor and Renewal Analyzer
+=====================================================
+Audits Mist subscription entitlements against actual usage and projects
+entitlement levels forward in time so renewal cliffs are visible before
+they become outages.
 
-Checks performed (AP-focused, v1):
-  1. Expired subscriptions         — end_time in the past → Critical
-  2. Expiring within 30 days       — end_time ≤ 30d from now → Critical
-  3. Expiring within 31–90 days    — end_time ≤ 90d from now → Warning
-  4. Coverage gap                  — fully_loaded > entitled for SUB-MAN → Critical
-  5. Eval APs                      — evals.ap > 0 → Warning (not production subscribed)
+Data source: GET /api/v1/orgs/{org_id}/licenses
+(the URL path is a legacy Mist API artifact; all authored vocabulary in
+this module is "subscription")
 
-SKU reference (AP-relevant):
-  SUB-MAN  — Mist AI (base AP management, required for all APs)
-  SUB-ENG  — Wired Assurance (switch)
-  SUB-AST  — Asset Tracking
-  SUB-VNA  — Virtual Network Assistant (Marvis)
-  SUB-ME   — Mist Edge
+Response field semantics, verified 26-JUL-2026 against a live customer
+org by cross-checking the raw payload with the Subscriptions UI:
+  entitled     : sum of quantities on subscription lines active right now
+  summary      : devices currently consuming each subscription type (Usage)
+  fully_loaded : worst-case demand if the feature were enabled everywhere
+  licenses[]   : full purchase history, one line per order line item,
+                 including long-expired lines back to org creation
+
+Checks performed (v2):
+  1. Exceeded now:      usage > entitled for any SKU              -> Critical
+  2. Future breach:     entitled drops below current usage,
+                        within 90 days                            -> Critical
+                        within 91 to 180 days                     -> Warning
+  3. Renewal decision:  expiry within 180 days that does not
+                        breach coverage                           -> Info
+  4. Evaluations:       evals present                             -> Warning
+
+Expired lines that were superseded by later purchases produce no
+findings. They exist only as history inside the renewal data payload.
 """
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-from models import ModuleOutput, Finding, Severity, SiteResult
+from models import ModuleOutput, Finding, Severity
 from mist_client import MistClient, MistAPIError
 from .base import BaseModule
 from ._mist_urls import subscriptions_url
 
 logger = logging.getLogger(__name__)
 
-# Subscription types relevant to AP management
-AP_SKU = "SUB-MAN"
-
-# Human-readable SKU descriptions
+# ---------------------------------------------------------------------------
+# SKU dictionary
+# Labels verified against a customer org Subscriptions UI capture, 26-JUL-2026.
+# Do not edit labels without a UI screenshot or Juniper document as provenance.
+# ---------------------------------------------------------------------------
 SKU_LABELS: dict[str, str] = {
-    "SUB-MAN":   "Mist AI (AP Management)",
-    "SUB-ENG":   "Wired Assurance",
-    "SUB-AST":   "Asset Tracking",
-    "SUB-VNA":   "Virtual Network Assistant (Marvis)",
+    "SUB-MAN":   "Wi-Fi Management and Assurance",
+    "SUB-VNA":   "Marvis for Wireless",
+    "SUB-ENG":   "vBLE Engagement",
+    "SUB-AST":   "Asset Visibility",
     "SUB-ME":    "Mist Edge",
-    "SUB-EX12":  "EX12xx Switch",
-    "SUB-EX24":  "EX24xx Switch",
-    "SUB-SVNA":  "Wired VNA",
+    "SUB-CLNT":  "Access Assurance Standard",
+    "SUB-EX24":  "Wired Assurance 24",
+    "SUB-EX48":  "Wired Assurance 48",
+    "SUB-SVNA":  "Marvis for Wired Network",
     "SUB-WAN":   "WAN Assurance",
-    "SUB-WAN1":  "WAN Assurance (1-year)",
-    "SUB-WVNA1": "WAN VNA",
+    "SUB-WAN1":  "WAN Assurance for Class 1",
+    "SUB-WAN2":  "WAN Assurance for Class 2",
+    "SUB-WAN3":  "WAN Assurance for Class 3",
+    "SUB-WAN4":  "WAN Assurance for Class 4",
+    "SUB-WAN5":  "WAN Assurance for Class 5",
+    "SUB-WVNA":  "Marvis for WAN",
+    "SUB-WVNA1": "Marvis for WAN for SRX Class 1",
+    "SUB-WVNA2": "Marvis for WAN for SRX Class 2",
+    "SUB-WVNA3": "Marvis for WAN for SRX Class 3",
+    "SUB-WVNA4": "Marvis for WAN for SRX Class 4",
+    "SUB-WVNA5": "Marvis for WAN for SRX Class 5",
 }
 
-EXPIRY_CRITICAL_DAYS = 30
-EXPIRY_WARNING_DAYS  = 90
+# Paired SKU convention: these arrive as twin order lines with identical
+# quantity and dates. The frontend uses this to roll pairs up for display.
+PAIRED_SKUS: list[tuple[str, str]] = [
+    ("SUB-MAN",  "SUB-VNA"),
+    ("SUB-EX48", "SUB-SVNA"),
+    ("SUB-EX24", "SUB-SVNA"),
+]
+
+BREACH_CRITICAL_DAYS = 90
+BREACH_WARNING_DAYS  = 180
+
+DAY_SECONDS = 86400
 
 
-def _epoch_to_dt(epoch: int | None) -> datetime | None:
-    if epoch is None:
-        return None
-    return datetime.fromtimestamp(epoch, tz=timezone.utc)
+def _fmt_date(epoch: int) -> str:
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%d-%b-%Y").upper()
 
 
-def _days_until(dt: datetime) -> int:
-    delta = dt - datetime.now(timezone.utc)
-    return delta.days
+def _join_orders(orders: list[str]) -> str:
+    """Render order IDs for findings text; pseudo-orders get readable names."""
+    names = {"Mist": "eval", "00000000": "Mist grant"}
+    return ", ".join(names.get(o, o) for o in orders)
+
+
+def classify_line(line: dict) -> str:
+    """
+    production   : purchased subscription line, renewable
+    system_grant : Mist-issued grant (order 00000000), not renewable
+    eval         : evaluation subscription (order "Mist"), not renewable
+    """
+    order = line.get("order_id") or ""
+    sub_id = line.get("subscription_id") or ""
+    if order == "Mist" or sub_id.startswith("SUB-Eval"):
+        return "eval"
+    if order == "00000000":
+        return "system_grant"
+    return "production"
+
+
+def entitlement_events(lines: list[dict]) -> dict[str, list[tuple[int, int, str]]]:
+    """
+    Convert subscription lines into per-SKU event lists for a sweep:
+    (+quantity at start_time, -quantity at end_time), sorted by time.
+    """
+    events: dict[str, list[tuple[int, int, str]]] = {}
+    for line in lines:
+        sku = line.get("type")
+        qty = line.get("quantity") or 0
+        start = line.get("start_time")
+        end = line.get("end_time")
+        order = line.get("order_id") or ""
+        if not sku or qty <= 0 or start is None or end is None:
+            continue
+        events.setdefault(sku, [])
+        events[sku].append((start, qty, order))
+        events[sku].append((end, -qty, order))
+    for sku in events:
+        events[sku].sort(key=lambda e: e[0])
+    return events
+
+
+def level_at(events: list[tuple[int, int, str]], t: int) -> int:
+    """Entitled quantity at time t (events at exactly t are applied)."""
+    return sum(delta for ts, delta, _ in events if ts <= t)
+
+
+def future_drops(events: list[tuple[int, int, str]], now: int) -> list[dict]:
+    """
+    All future expiry events, grouped by timestamp, with the entitled
+    level after each event and the order IDs responsible.
+    """
+    grouped: dict[int, dict] = {}
+    for ts, delta, order in events:
+        if ts > now and delta < 0:
+            rec = grouped.setdefault(ts, {"qty": 0, "orders": set()})
+            rec["qty"] += -delta
+            rec["orders"].add(order)
+    drops = []
+    for ts in sorted(grouped):
+        drops.append({
+            "t": ts,
+            "date": _fmt_date(ts),
+            "qty_expiring": grouped[ts]["qty"],
+            "allowed_after": level_at(events, ts),
+            "orders": sorted(grouped[ts]["orders"]),
+        })
+    return drops
+
+
+def timeline_series(events: list[tuple[int, int, str]], now: int) -> list[dict]:
+    """Forward step series for the chart: level now, then after each event."""
+    series = [{"t": now, "allowed": level_at(events, now)}]
+    for ts in sorted({ts for ts, _, _ in events if ts > now}):
+        series.append({"t": ts, "allowed": level_at(events, ts)})
+    return series
 
 
 class SUBMonitorModule(BaseModule):
@@ -69,178 +173,218 @@ class SUBMonitorModule(BaseModule):
 
     async def analyze(self, org_id: str, sites: list[dict], client: MistClient) -> ModuleOutput:
 
-        # ── 1. Fetch license data ────────────────────────────────────────────
+        # 1. Fetch subscription data (one org-scoped call)
         try:
             data = await client.get(f"/api/v1/orgs/{org_id}/licenses", use_cache=False)
         except MistAPIError as e:
-            return self._error_output(f"Failed to fetch license data: {e.message}")
+            return self._error_output(f"Failed to fetch subscription data: {e.message}")
 
-        licenses   = data.get("licenses", [])
-        entitled   = data.get("entitled", {})
-        fully_loaded = data.get("fully_loaded", {})
-        evals      = data.get("evals", {})
+        # "licenses" is the legacy Mist API response key. Normalized to
+        # subscription vocabulary here and never referenced again.
+        sub_lines    = data.get("licenses", []) or []
+        entitled     = data.get("entitled", {}) or {}
+        usage        = data.get("summary", {}) or {}
+        fully_loaded = data.get("fully_loaded", {}) or {}
+        evals        = data.get("evals", {}) or {}
 
-        now = datetime.now(timezone.utc)
+        now = int(datetime.now(timezone.utc).timestamp())
+
+        # 2. Classify lines once; classes tag timeline events and the order
+        # table. The timeline sweeps ALL lines (production, grants, evals) so
+        # levels match the Mist dashboard to the unit; grant and eval
+        # expiries appear as their own timeline events.
+        for line in sub_lines:
+            line["_class"] = classify_line(line)
+            rq = line.get("remaining_quantity")
+            if rq is not None and rq != (line.get("quantity") or 0):
+                logger.warning(
+                    f"remaining_quantity {rq} != quantity for "
+                    f"{line.get('subscription_id')}; semantics unverified, "
+                    f"using quantity"
+                )
+        all_events = entitlement_events(sub_lines)
+
         findings: list[Finding] = []
+        sku_payload: dict[str, dict] = {}
 
-        # ── 2. Check each license record for expiry ──────────────────────────
-        # Group by type so we report per-SKU, not per-license-line
-        expired_skus:  dict[str, list] = {}
-        critical_skus: dict[str, list] = {}
-        warning_skus:  dict[str, list] = {}
+        skus = sorted(set(all_events) | set(entitled) | set(usage))
 
-        for lic in licenses:
-            sku      = lic.get("type", "unknown")
-            qty      = lic.get("quantity", 0)
-            end_time = lic.get("end_time")
-            sub_id   = lic.get("subscription_id", "unknown")
-            end_dt   = _epoch_to_dt(end_time)
+        for sku in skus:
+            label   = SKU_LABELS.get(sku, sku)
+            api_ent = entitled.get(sku, 0)
+            used    = usage.get(sku, 0)
+            events  = all_events.get(sku, [])
+            drops   = future_drops(events, now)
 
-            if end_dt is None:
-                continue
+            # Cross-check our sweep against the API rollup (all line classes).
+            swept = level_at(all_events.get(sku, []), now)
+            if swept != api_ent:
+                logger.warning(
+                    f"{sku}: swept entitlement {swept} != API entitled {api_ent}; "
+                    f"possible amendment or unmodeled line, using API value"
+                )
 
-            days = _days_until(end_dt)
-            label = SKU_LABELS.get(sku, sku)
-            entry = {
-                "sku":    sku,
-                "label":  label,
-                "qty":    qty,
-                "sub_id": sub_id,
-                "end_dt": end_dt,
-                "days":   days,
+            status = "inactive"
+            if used > api_ent:
+                status = "exceeded"
+            elif api_ent > 0:
+                status = "active"
+
+            sku_payload[sku] = {
+                "label": label,
+                "entitled": api_ent,
+                "usage": used,
+                "fully_loaded": fully_loaded.get(sku, 0),
+                "status": status,
+                "timeline": timeline_series(events, now),
+                "drops": [
+                    {**d, "shortfall": max(0, used - d["allowed_after"])}
+                    for d in drops
+                ],
             }
 
-            if days < 0:
-                expired_skus.setdefault(sku, []).append(entry)
-            elif days <= EXPIRY_CRITICAL_DAYS:
-                critical_skus.setdefault(sku, []).append(entry)
-            elif days <= EXPIRY_WARNING_DAYS:
-                warning_skus.setdefault(sku, []).append(entry)
+            # 3. Exceeded now: usage beyond current entitlement.
+            if used > api_ent:
+                gap = used - api_ent
+                findings.append(Finding(
+                    severity=Severity.critical,
+                    title=f"Exceeded: {label} ({sku}), usage {used} of {api_ent} entitled",
+                    detail=(
+                        f"{used} devices are consuming {label} but only {api_ent} "
+                        f"subscriptions are entitled. {gap} devices are operating "
+                        f"beyond entitlement."
+                    ),
+                    affected=[f"{gap} devices over entitlement"],
+                    recommendation=(
+                        f"Purchase {gap} additional {sku} subscriptions, or reduce "
+                        f"usage by disabling the feature at selected sites."
+                    ),
+                    fix_url=subscriptions_url(client.portal_base, org_id),
+                ))
 
-        # Emit findings for expired licenses
-        for sku, entries in expired_skus.items():
-            total_qty = sum(e["qty"] for e in entries)
-            label = SKU_LABELS.get(sku, sku)
-            findings.append(Finding(
-                severity=Severity.critical,
-                title=f"EXPIRED: {label} ({sku}) — {total_qty} license(s)",
-                detail=(
-                    f"{total_qty} {sku} license(s) have expired. "
-                    f"Expired subscriptions may result in loss of features or "
-                    f"management capability for affected devices."
-                ),
-                affected=[f"{e['qty']} × {e['sub_id']} expired {abs(e['days'])} days ago" for e in entries],
-                recommendation=(
-                    f"Contact your Juniper/HPE account team immediately to renew {sku} licenses. "
-                    f"Expired licenses may impact device management and Marvis AI functionality."
-                ),
-                fix_url=subscriptions_url(client.portal_base, org_id),
-            ))
+            # 4. Future coverage breaches and renewal decision points.
+            if used > 0:
+                breach_reported = False
+                for d in drops:
+                    days = (d["t"] - now) // DAY_SECONDS
+                    if days > BREACH_WARNING_DAYS:
+                        break
+                    shortfall = used - d["allowed_after"]
+                    if shortfall > 0 and not breach_reported:
+                        breach_reported = True
+                        sev = (
+                            Severity.critical
+                            if days <= BREACH_CRITICAL_DAYS
+                            else Severity.warning
+                        )
+                        findings.append(Finding(
+                            severity=sev,
+                            title=(
+                                f"Coverage breach {d['date']}: {label} ({sku}), "
+                                f"shortfall {shortfall}"
+                            ),
+                            detail=(
+                                f"{d['qty_expiring']} {sku} subscriptions expire on "
+                                f"{d['date']} (order {_join_orders(d['orders'])}). "
+                                f"Entitlement drops to {d['allowed_after']} against "
+                                f"current usage of {used}: a shortfall of {shortfall}. "
+                                f"Accounting view: renew {d['qty_expiring']} units. "
+                                f"Operations view: {shortfall} devices lose coverage."
+                            ),
+                            affected=[f"{d['qty_expiring']} units expiring {d['date']}"],
+                            recommendation=(
+                                f"Initiate renewal for order(s) "
+                                f"{_join_orders(d['orders'])} before {d['date']}. "
+                                f"Allow 5 to 10 business days for order processing."
+                            ),
+                            fix_url=subscriptions_url(client.portal_base, org_id),
+                        ))
+                    elif shortfall <= 0:
+                        findings.append(Finding(
+                            severity=Severity.info,
+                            title=(
+                                f"Renewal decision {d['date']}: {label} ({sku}), "
+                                f"{d['qty_expiring']} units"
+                            ),
+                            detail=(
+                                f"{d['qty_expiring']} {sku} subscriptions expire on "
+                                f"{d['date']} (order {_join_orders(d['orders'])}). "
+                                f"Remaining entitlement {d['allowed_after']} still "
+                                f"covers current usage of {used}, so this is a "
+                                f"renewal decision, not an outage risk."
+                            ),
+                        ))
 
-        # Emit findings for licenses expiring within 30 days
-        for sku, entries in critical_skus.items():
-            total_qty = sum(e["qty"] for e in entries)
-            label = SKU_LABELS.get(sku, sku)
-            min_days = min(e["days"] for e in entries)
-            findings.append(Finding(
-                severity=Severity.critical,
-                title=f"Expiring in {min_days}d: {label} ({sku}) — {total_qty} license(s)",
-                detail=(
-                    f"{total_qty} {sku} license(s) expire within {EXPIRY_CRITICAL_DAYS} days. "
-                    f"Immediate renewal action required to avoid service disruption."
-                ),
-                affected=[f"{e['qty']} × {e['sub_id']} expires {e['days']}d ({e['end_dt'].strftime('%Y-%m-%d')})" for e in entries],
-                recommendation=(
-                    f"Contact your Juniper/HPE account team to initiate renewal for {sku}. "
-                    f"Allow 5–10 business days for license processing."
-                ),
-                fix_url=subscriptions_url(client.portal_base, org_id),
-            ))
-
-        # Emit findings for licenses expiring within 31–90 days
-        for sku, entries in warning_skus.items():
-            total_qty = sum(e["qty"] for e in entries)
-            label = SKU_LABELS.get(sku, sku)
-            min_days = min(e["days"] for e in entries)
-            findings.append(Finding(
-                severity=Severity.warning,
-                title=f"Expiring in {min_days}d: {label} ({sku}) — {total_qty} license(s)",
-                detail=(
-                    f"{total_qty} {sku} license(s) expire within {EXPIRY_WARNING_DAYS} days. "
-                    f"Begin renewal process to avoid last-minute disruption."
-                ),
-                affected=[f"{e['qty']} × {e['sub_id']} expires {e['days']}d ({e['end_dt'].strftime('%Y-%m-%d')})" for e in entries],
-                recommendation=(
-                    f"Initiate renewal for {sku} with your account team. "
-                    f"Reference subscription ID(s): {', '.join(e['sub_id'] for e in entries)}."
-                ),
-            ))
-
-        # ── 3. Check AP coverage gap (SUB-MAN) ──────────────────────────────
-        man_entitled    = entitled.get(AP_SKU, 0)
-        man_fully_loaded = fully_loaded.get(AP_SKU, 0)
-
-        if man_fully_loaded > man_entitled:
-            gap = man_fully_loaded - man_entitled
-            findings.append(Finding(
-                severity=Severity.critical,
-                title=f"SUB-MAN coverage gap — {gap} AP(s) unlicensed",
-                detail=(
-                    f"The org requires {man_fully_loaded} {AP_SKU} licenses to cover all deployed APs "
-                    f"but only has {man_entitled} entitled. "
-                    f"{gap} AP(s) are operating without a valid management subscription."
-                ),
-                affected=[f"{gap} AP(s) without SUB-MAN coverage"],
-                recommendation=(
-                    f"Purchase {gap} additional SUB-MAN licenses to bring the org into compliance. "
-                    f"Unlicensed APs may lose management functionality."
-                ),
-                fix_url=subscriptions_url(client.portal_base, org_id),
-            ))
-
-        # ── 4. Check eval APs ───────────────────────────────────────────────
-        eval_aps = evals.get("ap", 0)
-        if eval_aps > 0:
+        # 5. Evaluation subscriptions (counted once, from the evals object).
+        if evals:
+            eval_lines = [l for l in sub_lines if l["_class"] == "eval"]
+            eval_end = min(
+                (l.get("end_time") for l in eval_lines if l.get("end_time")),
+                default=None,
+            )
+            desc = ", ".join(f"{count} {kind}(s)" for kind, count in evals.items())
+            end_txt = f" Evaluation period ends {_fmt_date(eval_end)}." if eval_end else ""
             findings.append(Finding(
                 severity=Severity.warning,
-                title=f"{eval_aps} AP(s) running on eval subscription",
+                title=f"Evaluation subscriptions in use: {desc}",
                 detail=(
-                    f"{eval_aps} AP(s) are operating under an evaluation subscription rather than "
-                    f"a production entitlement. Eval subscriptions have a fixed end date and "
-                    f"are not renewable — they must be replaced with production licenses."
+                    f"{desc} operating under evaluation subscriptions rather than "
+                    f"production entitlements. Evaluations have fixed end dates "
+                    f"and are not renewable; they must be replaced with production "
+                    f"subscriptions.{end_txt}"
                 ),
-                affected=[f"{eval_aps} AP(s) on eval"],
                 recommendation=(
-                    "Convert eval APs to production SUB-MAN licenses before the eval period ends. "
-                    "Contact your Juniper/HPE account team to initiate the conversion."
+                    "Convert evaluation devices to production subscriptions "
+                    "before the evaluation period ends."
                 ),
             ))
 
-        # ── 5. Score and summarize ───────────────────────────────────────────
+        # 6. Order table for the renewal report, sorted by earliest end date.
+        orders: dict[str, dict] = {}
+        for line in sub_lines:
+            sku = line.get("type")
+            if not sku:
+                continue
+            oid = line.get("order_id") or "unknown"
+            rec = orders.setdefault(oid, {
+                "order_id": oid,
+                "class": line["_class"],
+                "lines": [],
+            })
+            rec["lines"].append({
+                "subscription_id": line.get("subscription_id"),
+                "sku": sku,
+                "label": SKU_LABELS.get(sku, sku),
+                "qty": line.get("quantity") or 0,
+                "start": line.get("start_time"),
+                "end": line.get("end_time"),
+            })
+        order_table = sorted(
+            orders.values(),
+            key=lambda o: min((l["end"] or 0) for l in o["lines"]),
+        )
+
+        # 7. Score and summarize.
         score    = self.score_from_findings(findings)
         severity = self.severity_from_score(score)
 
-        total_licenses = sum(lic.get("quantity", 0) for lic in licenses)
-        total_skus     = len(set(lic.get("type") for lic in licenses))
+        exceeded = [s for s, p in sku_payload.items() if p["status"] == "exceeded"]
+        breaches = [f for f in findings if f.title.startswith("Coverage breach")]
 
-        if not findings:
-            summary = (
-                f"{total_licenses} licenses across {total_skus} SKU(s) — "
-                f"all current, {man_entitled} SUB-MAN entitlements covering all APs."
+        parts = []
+        if exceeded:
+            parts.append(f"{len(exceeded)} type(s) exceeded ({', '.join(exceeded)})")
+        if breaches:
+            parts.append(breaches[0].title)
+        if evals:
+            parts.append(f"{sum(evals.values())} eval device(s)")
+        if not parts:
+            active = [s for s, p in sku_payload.items() if p["status"] == "active"]
+            parts.append(
+                f"{len(active)} subscription type(s) active, coverage holds "
+                f"for {BREACH_WARNING_DAYS} days"
             )
-        else:
-            parts = []
-            if expired_skus:
-                parts.append(f"{len(expired_skus)} expired SKU(s)")
-            if critical_skus:
-                parts.append(f"{len(critical_skus)} expiring within 30d")
-            if warning_skus:
-                parts.append(f"{len(warning_skus)} expiring within 90d")
-            if man_fully_loaded > man_entitled:
-                parts.append(f"SUB-MAN gap: {man_fully_loaded - man_entitled} unlicensed APs")
-            if eval_aps:
-                parts.append(f"{eval_aps} eval AP(s)")
-            summary = ", ".join(parts) + "."
+        summary = "; ".join(parts) + "."
 
         return ModuleOutput(
             module_id=self.module_id,
@@ -252,4 +396,11 @@ class SUBMonitorModule(BaseModule):
             findings=findings,
             sites=[],
             status="ok",
+            data={
+                "as_of": now,
+                "skus": sku_payload,
+                "orders": order_table,
+                "paired_skus": PAIRED_SKUS,
+                "evals": evals,
+            },
         )
