@@ -1,5 +1,17 @@
 import React from 'react'
 import { getSeverityConfig } from '../utils/severity'
+import SubRenewalPanel from './SubRenewalPanel'
+
+// Module-specific drill-down panels. A module appears here only when it emits
+// a structured ModuleOutput.data payload that warrants its own presentation.
+// Panels receive that payload as `data` and render beneath the score legend.
+const PANEL_REGISTRY = {
+  sub_monitor: SubRenewalPanel,
+}
+
+// Panels carrying charts or tables need more horizontal room than the default
+// findings list.
+const WIDE_PANEL_MODULES = new Set(['sub_monitor'])
 
 // Score legend — shown in every drill-down
 const SCORE_LEGEND = [
@@ -69,12 +81,16 @@ const MODULE_CONTEXT = {
     'WAN SLEs checked: Gateway Health, WAN Availability, and Application Health. Each below 80% triggers a Warning.'
   ),
   sub_monitor: (
-    'Subscription analysis audits Mist license entitlements against deployed AP inventory. ' +
-    'Expired subscriptions and expiry within 30 days are Critical; expiry within 31 to 90 days is Warning. ' +
-    'A SUB-MAN coverage gap (deployed APs exceeding entitled licenses) is Critical, since unlicensed ' +
-    'APs may lose management functionality. APs running on evaluation subscriptions generate a Warning ' +
-    'because eval licenses have fixed end dates and are not renewable. A score of 100 means all ' +
-    'subscriptions are current, SUB-MAN coverage matches deployed APs, and no APs are on eval.'
+    'Subscription analysis audits entitlements against actual usage and projects entitlement ' +
+    'levels forward in time, so renewal cliffs are visible before they become outages. ' +
+    'Usage above entitlement today is Critical. A future expiry that drops entitlement below ' +
+    'current usage is Critical within 90 days and Warning within 91 to 180 days, reported with ' +
+    'both the accounting number (units to renew) and the operations number (devices that lose ' +
+    'coverage). Expiries that leave coverage intact are Info renewal decisions rather than risks. ' +
+    'Evaluation subscriptions are a Warning because they have fixed end dates and are not renewable. ' +
+    'Expired lines superseded by later purchases produce no findings and appear only in the order ' +
+    'history below. A score of 100 means usage sits within entitlement now and coverage holds for ' +
+    'the next 180 days.'
   ),
   minis_monitor: (
     'Minis readiness covers the prerequisites for Marvis synthetic testing. SUB-VNA entitlement is ' +
@@ -192,10 +208,15 @@ export default function DrillDown({ module, onClose }) {
   const orgFindings = module.findings ?? []
   const sites = module.sites ?? []
 
+  const Panel = PANEL_REGISTRY[module.module_id]
+  const showPanel = Boolean(Panel && module.data)
+  const widthClass =
+    showPanel && WIDE_PANEL_MODULES.has(module.module_id) ? 'max-w-3xl' : 'max-w-xl'
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div
-        className="relative w-full max-w-xl h-full bg-slate-950 border-l border-slate-800 overflow-y-auto shadow-2xl"
+        className={`relative w-full ${widthClass} h-full bg-slate-950 border-l border-slate-800 overflow-y-auto shadow-2xl`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -217,8 +238,11 @@ export default function DrillDown({ module, onClose }) {
 
         <div className="px-6 py-5 space-y-7">
 
-          {/* Score legend — always shown */}
+          {/* Score legend, always shown */}
           <ScoreLegend moduleId={module.module_id} />
+
+          {/* Module-specific panel, when the module emits a data payload */}
+          {showPanel && <Panel data={module.data} />}
 
           {/* Org-level findings */}
           {orgFindings.length > 0 && (
